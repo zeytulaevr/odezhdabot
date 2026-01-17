@@ -16,6 +16,8 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        # Отключаем автоматический парсинг JSON для env переменных
+        env_parse_none_str="null",
     )
 
     # ========================================
@@ -107,11 +109,19 @@ class Settings(BaseSettings):
 
     @field_validator("admin_ids", mode="before")
     @classmethod
-    def parse_admin_ids(cls, v: str | list[int]) -> list[int]:
+    def parse_admin_ids(cls, v) -> list[int]:
         """Парсинг ID администраторов из строки или списка."""
+        if v is None or v == "":
+            return []
         if isinstance(v, str):
+            if not v.strip():
+                return []
+            # Парсим строку с запятыми
             return [int(id_str.strip()) for id_str in v.split(",") if id_str.strip()]
-        return v
+        if isinstance(v, list):
+            return v
+        # Если это одно число
+        return [int(v)]
 
     # ========================================
     # PAYMENT SETTINGS
