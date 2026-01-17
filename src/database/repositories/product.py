@@ -1,0 +1,69 @@
+"""Репозиторий для работы с товарами."""
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.database.models.product import Product
+from src.database.repositories.base import BaseRepository
+
+
+class ProductRepository(BaseRepository[Product]):
+    """Репозиторий для работы с товарами."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Инициализация репозитория товаров."""
+        super().__init__(Product, session)
+
+    async def get_active_products(self, skip: int = 0, limit: int = 100) -> list[Product]:
+        """Получить активные товары.
+
+        Args:
+            skip: Количество пропускаемых записей
+            limit: Максимальное количество записей
+
+        Returns:
+            Список активных товаров
+        """
+        stmt = select(Product).where(Product.is_active == True).offset(skip).limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_by_category_id(
+        self, category_id: int, skip: int = 0, limit: int = 100
+    ) -> list[Product]:
+        """Получить товары по ID категории.
+
+        Args:
+            category_id: ID категории
+            skip: Количество пропускаемых записей
+            limit: Максимальное количество записей
+
+        Returns:
+            Список товаров в категории
+        """
+        stmt = (
+            select(Product)
+            .where(Product.category_id == category_id, Product.is_active == True)
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def search_by_name(self, query: str, limit: int = 20) -> list[Product]:
+        """Поиск товаров по названию.
+
+        Args:
+            query: Поисковый запрос
+            limit: Максимальное количество результатов
+
+        Returns:
+            Список найденных товаров
+        """
+        stmt = (
+            select(Product)
+            .where(Product.name.ilike(f"%{query}%"), Product.is_active == True)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
