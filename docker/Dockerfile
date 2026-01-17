@@ -1,5 +1,4 @@
 # Multi-stage build для оптимизации размера образа
-
 # Stage 1: Builder - установка зависимостей
 FROM python:3.11-slim as builder
 

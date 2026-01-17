@@ -1,198 +1,147 @@
-"""Главные меню для разных ролей пользователей."""
+"""Главные меню и панели для разных ролей пользователей (inline клавиатуры)."""
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
-def get_user_menu() -> ReplyKeyboardMarkup:
-    """Получить главное меню для обычного пользователя.
-
-    Returns:
-        Reply клавиатура для пользователя
-    """
-    builder = ReplyKeyboardBuilder()
+# =======================
+# Главное меню пользователя
+# =======================
+def get_user_menu() -> InlineKeyboardMarkup:
+    """Главное меню для обычного пользователя (inline)."""
+    builder = InlineKeyboardBuilder()
 
     # Первый ряд
     builder.row(
-        InlineKeyboardButton(text="📦 Каталог"),
-        InlineKeyboardButton(text="🛍 Мои заказы"),
+        InlineKeyboardButton(text="📦 Каталог", callback_data="user:catalog"),
+        InlineKeyboardButton(text="🛍 Мои заказы", callback_data="user:orders"),
     )
 
     # Второй ряд
     builder.row(
-        InlineKeyboardButton(text="ℹ️ Помощь"),
+        InlineKeyboardButton(text="ℹ️ Помощь", callback_data="user:help"),
     )
 
-    return builder.as_markup(
-        resize_keyboard=True,
-        input_field_placeholder="Выберите раздел...",
-    )
+    return builder.as_markup()
 
 
-def get_admin_menu() -> ReplyKeyboardMarkup:
-    """Получить главное меню для администратора.
+# =======================
+# Главное меню администратора
+# =======================
+def get_admin_menu() -> InlineKeyboardMarkup:
+    """Главное меню для администратора (inline)."""
+    builder = InlineKeyboardBuilder()
 
-    Returns:
-        Reply клавиатура для администратора
-    """
-    builder = ReplyKeyboardBuilder()
-
-    # Первый ряд - основные функции
+    # Первый ряд
     builder.row(
-        InlineKeyboardButton(text="📋 Заказы"),
-        InlineKeyboardButton(text="📊 Статистика"),
+        InlineKeyboardButton(text="📋 Заказы", callback_data="admin:orders"),
+        InlineKeyboardButton(text="📊 Статистика", callback_data="admin:stats"),
     )
 
     # Второй ряд
     builder.row(
-        InlineKeyboardButton(text="👤 Пользователи"),
-        InlineKeyboardButton(text="ℹ️ Помощь"),
+        InlineKeyboardButton(text="👤 Пользователи", callback_data="admin:users"),
+        InlineKeyboardButton(text="ℹ️ Помощь", callback_data="admin:help"),
     )
 
-    return builder.as_markup(
-        resize_keyboard=True,
-        input_field_placeholder="Панель администратора...",
-    )
+    return builder.as_markup()
 
 
-def get_superadmin_menu() -> ReplyKeyboardMarkup:
-    """Получить главное меню для супер-администратора.
+# =======================
+# Главное меню супер-администратора
+# =======================
+def get_superadmin_menu() -> InlineKeyboardMarkup:
+    """Главное меню для супер-администратора (inline)."""
+    builder = InlineKeyboardBuilder()
 
-    Returns:
-        Reply клавиатура для супер-администратора
-    """
-    builder = ReplyKeyboardBuilder()
-
-    # Первый ряд - заказы и статистика
+    # Первый ряд
     builder.row(
-        InlineKeyboardButton(text="📋 Заказы"),
-        InlineKeyboardButton(text="📊 Статистика"),
+        InlineKeyboardButton(text="📋 Заказы", callback_data="superadmin:orders"),
+        InlineKeyboardButton(text="📊 Статистика", callback_data="superadmin:stats"),
     )
 
-    # Второй ряд - управление
+    # Второй ряд
     builder.row(
-        InlineKeyboardButton(text="📦 Товары"),
-        InlineKeyboardButton(text="👤 Пользователи"),
+        InlineKeyboardButton(text="📦 Товары", callback_data="superadmin:products"),
+        InlineKeyboardButton(text="👤 Пользователи", callback_data="superadmin:users"),
     )
 
-    # Третий ряд - дополнительные функции
+    # Третий ряд
     builder.row(
-        InlineKeyboardButton(text="📢 Рассылка"),
-        InlineKeyboardButton(text="🔧 Модерация"),
+        InlineKeyboardButton(text="📢 Рассылка", callback_data="superadmin:broadcast"),
+        InlineKeyboardButton(text="🔧 Модерация", callback_data="superadmin:moderation"),
     )
 
     # Четвёртый ряд
     builder.row(
-        InlineKeyboardButton(text="⚙️ Настройки"),
-        InlineKeyboardButton(text="ℹ️ Помощь"),
+        InlineKeyboardButton(text="⚙️ Настройки", callback_data="superadmin:settings"),
+        InlineKeyboardButton(text="ℹ️ Помощь", callback_data="superadmin:help"),
     )
 
-    return builder.as_markup(
-        resize_keyboard=True,
-        input_field_placeholder="Панель супер-администратора...",
-    )
+    return builder.as_markup()
 
 
+# =======================
+# Админ-панель
+# =======================
 def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
-    """Получить inline клавиатуру админ-панели.
-
-    Returns:
-        Inline клавиатура с кнопками админ-панели
-    """
+    """Inline клавиатура для админ-панели."""
     builder = InlineKeyboardBuilder()
 
-    # Управление заказами
     builder.row(
         InlineKeyboardButton(text="📋 Новые заказы", callback_data="admin:orders:new"),
-    )
-    builder.row(
         InlineKeyboardButton(text="🔄 В обработке", callback_data="admin:orders:processing"),
-    )
-    builder.row(
         InlineKeyboardButton(text="✅ Завершённые", callback_data="admin:orders:completed"),
     )
 
-    # Разделитель
     builder.row(
         InlineKeyboardButton(text="━━━━━━━━━━━━━━━", callback_data="separator"),
     )
 
-    # Статистика
     builder.row(
         InlineKeyboardButton(text="📊 Статистика", callback_data="admin:stats"),
-    )
-
-    # Пользователи
-    builder.row(
         InlineKeyboardButton(text="👤 Пользователи", callback_data="admin:users"),
     )
 
     return builder.as_markup()
 
 
+# =======================
+# Супер-админ панель
+# =======================
 def get_superadmin_panel_keyboard() -> InlineKeyboardMarkup:
-    """Получить inline клавиатуру супер-админ панели.
-
-    Returns:
-        Inline клавиатура с кнопками супер-админ панели
-    """
+    """Inline клавиатура супер-админ панели."""
     builder = InlineKeyboardBuilder()
 
-    # Управление заказами
     builder.row(
         InlineKeyboardButton(text="📋 Заказы", callback_data="superadmin:orders"),
-    )
-
-    # Управление товарами
-    builder.row(
         InlineKeyboardButton(text="📦 Товары", callback_data="superadmin:products"),
-    )
-    builder.row(
         InlineKeyboardButton(text="➕ Добавить товар", callback_data="superadmin:products:add"),
-    )
-
-    # Управление категориями
-    builder.row(
         InlineKeyboardButton(text="🏷 Категории", callback_data="superadmin:categories"),
     )
 
-    # Разделитель
     builder.row(
         InlineKeyboardButton(text="━━━━━━━━━━━━━━━", callback_data="separator"),
     )
 
-    # Модерация
     builder.row(
         InlineKeyboardButton(text="🔧 Модерация отзывов", callback_data="superadmin:reviews"),
-    )
-
-    # Рассылка
-    builder.row(
         InlineKeyboardButton(text="📢 Рассылка", callback_data="superadmin:broadcast"),
     )
 
-    # Пользователи
     builder.row(
         InlineKeyboardButton(text="👤 Пользователи", callback_data="superadmin:users"),
-    )
-
-    # Настройки
-    builder.row(
         InlineKeyboardButton(text="⚙️ Настройки", callback_data="superadmin:settings"),
     )
 
     return builder.as_markup()
 
 
+# =======================
+# Кнопка "Назад"
+# =======================
 def get_back_button(callback_data: str = "back") -> InlineKeyboardMarkup:
-    """Получить клавиатуру с кнопкой "Назад".
-
-    Args:
-        callback_data: Callback data для кнопки
-
-    Returns:
-        Inline клавиатура с кнопкой назад
-    """
+    """Inline клавиатура с кнопкой 'Назад'."""
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="◀️ Назад", callback_data=callback_data),

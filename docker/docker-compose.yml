@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL база данных
   postgres:
@@ -65,9 +63,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
 
       # Bot
-      BOT_TOKEN: ${BOT_TOKEN}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      ADMIN_IDS: ${ADMIN_IDS:-}
       ENVIRONMENT: ${ENVIRONMENT:-development}
     depends_on:
       postgres:
