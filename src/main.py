@@ -9,10 +9,10 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 
-from src.bot.handlers import common
+from src.bot.handlers import admin, common, superadmin, user
+from src.bot.middlewares.auth import AuthMiddleware
 from src.bot.middlewares.database import DatabaseMiddleware
 from src.bot.middlewares.logging import LoggingMiddleware
-from src.bot.middlewares.user import UserMiddleware
 from src.core.config import settings
 from src.core.logging import get_logger, setup_logging
 from src.database.base import close_db, init_db
@@ -86,10 +86,10 @@ def setup_middlewares(dp: Dispatcher) -> None:
         dp: Диспетчер
     """
     # Middlewares применяются в порядке регистрации
-    # Сначала логирование, потом база данных, затем пользователь
+    # Сначала логирование, потом база данных, затем авторизация
     dp.update.middleware(LoggingMiddleware())
     dp.update.middleware(DatabaseMiddleware())
-    dp.update.middleware(UserMiddleware())
+    dp.update.middleware(AuthMiddleware())
 
     logger.info("Middlewares configured")
 
@@ -100,14 +100,19 @@ def setup_handlers(dp: Dispatcher) -> None:
     Args:
         dp: Диспетчер
     """
-    # Регистрация роутеров
+    # Регистрация роутеров в порядке приоритета
+    # Сначала общие хендлеры (help, start)
     dp.include_router(common.router)
+    dp.include_router(user.router)
+
+    # Затем хендлеры с проверкой ролей
+    dp.include_router(superadmin.router)
+    dp.include_router(admin.router)
 
     # Здесь можно добавить другие роутеры:
     # dp.include_router(catalog.router)
     # dp.include_router(cart.router)
     # dp.include_router(orders.router)
-    # dp.include_router(admin.router)
 
     logger.info("Handlers configured")
 
