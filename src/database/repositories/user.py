@@ -23,7 +23,9 @@ class UserRepository(BaseRepository[User]):
         Returns:
             Пользователь или None
         """
-        return await self.get(telegram_id)
+        stmt = select(User).where(User.telegram_id == telegram_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_by_username(self, username: str) -> User | None:
         """Получить пользователя по username.
@@ -41,17 +43,15 @@ class UserRepository(BaseRepository[User]):
     async def get_or_create(
         self,
         telegram_id: int,
-        username: str | None,
-        first_name: str,
-        last_name: str | None = None,
+        full_name: str,
+        username: str | None = None,
     ) -> tuple[User, bool]:
         """Получить существующего пользователя или создать нового.
 
         Args:
             telegram_id: Telegram ID пользователя
+            full_name: Полное имя пользователя
             username: Username пользователя
-            first_name: Имя пользователя
-            last_name: Фамилия пользователя
 
         Returns:
             Кортеж (пользователь, создан_ли_новый)
@@ -60,22 +60,22 @@ class UserRepository(BaseRepository[User]):
 
         if user:
             # Обновление данных если они изменились
-            if user.username != username or user.first_name != first_name:
-                await self.update(
-                    telegram_id,
-                    username=username,
-                    first_name=first_name,
-                    last_name=last_name,
+            if user.username != username or user.full_name != full_name:
+                stmt = (
+                    select(User)
+                    .where(User.id == user.id)
                 )
+                user.username = username
+                user.full_name = full_name
+                await self.session.commit()
                 await self.session.refresh(user)
             return user, False
 
         # Создание нового пользователя
         user = await self.create(
-            id=telegram_id,
+            telegram_id=telegram_id,
+            full_name=full_name,
             username=username,
-            first_name=first_name,
-            last_name=last_name,
         )
         return user, True
 
@@ -85,14 +85,12 @@ class UserRepository(BaseRepository[User]):
         Returns:
             Список администраторов
         """
-        from src.core.constants import UserRole
-
-        stmt = select(User).where(User.role == UserRole.ADMIN.value)
+        stmt = select(User).where(User.role.in_(["admin", "super_admin"]))
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_active_users(self, skip: int = 0, limit: int = 100) -> list[User]:
-        """Получить активных пользователей.
+        """Получить активных (не забаненных) пользователей.
 
         Args:
             skip: Количество пропускаемых записей
@@ -103,31 +101,31 @@ class UserRepository(BaseRepository[User]):
         """
         stmt = (
             select(User)
-            .where(User.is_active == True, User.is_blocked == False)
+            .where(User.is_banned == False)
             .offset(skip)
             .limit(limit)
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def block_user(self, telegram_id: int) -> User | None:
-        """Заблокировать пользователя.
+    async def ban_user(self, user_id: int) -> User | None:
+        """Забанить пользователя.
 
         Args:
-            telegram_id: Telegram ID пользователя
+            user_id: ID пользователя
 
         Returns:
             Обновлённый пользователь или None
         """
-        return await self.update(telegram_id, is_blocked=True)
+        return await self.update(user_id, is_banned=True)
 
-    async def unblock_user(self, telegram_id: int) -> User | None:
-        """Разблокировать пользователя.
+    async def unban_user(self, user_id: int) -> User | None:
+        """Разбанить пользователя.
 
         Args:
-            telegram_id: Telegram ID пользователя
+            user_id: ID пользователя
 
         Returns:
             Обновлённый пользователь или None
         """
-        return await self.update(telegram_id, is_blocked=False)
+        return await self.update(user_id, is_banned=False)

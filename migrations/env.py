@@ -31,11 +31,19 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Импорт моделей для автогенерации миграций
-# from src.database.models import Base
-# target_metadata = Base.metadata
+from src.database.base import Base
+from src.database.models import (  # noqa: F401
+    AdminLog,
+    Broadcast,
+    Category,
+    Order,
+    Product,
+    Review,
+    SpamPattern,
+    User,
+)
 
-# Временно None, пока не создали модели
-target_metadata = None
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

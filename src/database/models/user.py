@@ -2,27 +2,39 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, String
+from sqlalchemy import BigInteger, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.core.constants import UserRole
 from src.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from src.database.models.order import Order
+    from src.database.models.review import Review
 
 
 class User(Base, TimestampMixin):
     """Модель пользователя Telegram бота."""
 
     __tablename__ = "users"
-    __table_args__ = {"comment": "Пользователи Telegram бота"}
+    __table_args__ = (
+        Index("ix_users_telegram_id", "telegram_id"),
+        Index("ix_users_role", "role"),
+        {"comment": "Пользователи Telegram бота"},
+    )
 
-    # Первичный ключ - Telegram ID
+    # Первичный ключ
     id: Mapped[int] = mapped_column(
         BigInteger,
         primary_key=True,
-        autoincrement=False,
+        autoincrement=True,
+        comment="ID пользователя",
+    )
+
+    # Telegram ID пользователя (уникальный)
+    telegram_id: Mapped[int] = mapped_column(
+        BigInteger,
+        unique=True,
+        nullable=False,
         comment="Telegram ID пользователя",
     )
 
@@ -30,37 +42,24 @@ class User(Base, TimestampMixin):
     username: Mapped[str | None] = mapped_column(
         String(32), nullable=True, comment="Telegram username"
     )
-    first_name: Mapped[str] = mapped_column(String(64), nullable=False, comment="Имя пользователя")
-    last_name: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, comment="Фамилия пользователя"
+
+    # Полное имя из Telegram
+    full_name: Mapped[str] = mapped_column(
+        String(255), nullable=False, comment="Полное имя пользователя"
     )
 
     # Контактная информация
     phone: Mapped[str | None] = mapped_column(
         String(20), nullable=True, comment="Номер телефона"
     )
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="Email")
 
-    # Адрес доставки
-    address: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="Адрес доставки"
-    )
-
-    # Роль пользователя
+    # Роль пользователя: 'user', 'admin', 'super_admin'
     role: Mapped[str] = mapped_column(
-        String(20), nullable=False, default=UserRole.USER.value, comment="Роль пользователя"
+        String(20), nullable=False, default="user", comment="Роль пользователя"
     )
 
-    # Язык интерфейса
-    language: Mapped[str] = mapped_column(
-        String(5), nullable=False, default="ru", comment="Код языка (ru, en)"
-    )
-
-    # Статус
-    is_active: Mapped[bool] = mapped_column(
-        nullable=False, default=True, comment="Активен ли пользователь"
-    )
-    is_blocked: Mapped[bool] = mapped_column(
+    # Статус блокировки
+    is_banned: Mapped[bool] = mapped_column(
         nullable=False, default=False, comment="Заблокирован ли пользователь"
     )
 
@@ -69,19 +68,16 @@ class User(Base, TimestampMixin):
         "Order", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
     )
 
-    @property
-    def full_name(self) -> str:
-        """Полное имя пользователя."""
-        if self.last_name:
-            return f"{self.first_name} {self.last_name}"
-        return self.first_name
+    reviews: Mapped[list["Review"]] = relationship(
+        "Review", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
+    )
 
     @property
     def is_admin(self) -> bool:
         """Проверка, является ли пользователь администратором."""
-        return self.role == UserRole.ADMIN.value
+        return self.role in ["admin", "super_admin"]
 
     @property
-    def is_moderator(self) -> bool:
-        """Проверка, является ли пользователь модератором."""
-        return self.role in [UserRole.ADMIN.value, UserRole.MODERATOR.value]
+    def is_super_admin(self) -> bool:
+        """Проверка, является ли пользователь супер-администратором."""
+        return self.role == "super_admin"

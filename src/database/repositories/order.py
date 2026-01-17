@@ -1,12 +1,9 @@
 """Репозиторий для работы с заказами."""
 
-from decimal import Decimal
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.constants import OrderStatus, PaymentStatus
-from src.database.models.order import Order, OrderItem
+from src.database.models.order import Order
 from src.database.repositories.base import BaseRepository
 
 
@@ -41,81 +38,50 @@ class OrderRepository(BaseRepository[Order]):
         return list(result.scalars().all())
 
     async def get_by_status(
-        self, status: OrderStatus, skip: int = 0, limit: int = 100
+        self, status: str, skip: int = 0, limit: int = 100
     ) -> list[Order]:
         """Получить заказы по статусу.
 
         Args:
-            status: Статус заказа
+            status: Статус заказа ('new', 'processing', 'paid', 'shipped', 'completed', 'cancelled')
             skip: Количество пропускаемых записей
             limit: Максимальное количество записей
 
         Returns:
             Список заказов с указанным статусом
         """
-        stmt = select(Order).where(Order.status == status.value).offset(skip).limit(limit)
+        stmt = select(Order).where(Order.status == status).offset(skip).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def create_order(
         self,
         user_id: int,
-        items: list[dict],
-        delivery_address: str,
-        recipient_name: str,
-        recipient_phone: str,
-        comment: str | None = None,
+        product_id: int,
+        size: str,
+        customer_contact: str,
     ) -> Order:
-        """Создать новый заказ с товарами.
+        """Создать новый заказ.
 
         Args:
             user_id: ID пользователя
-            items: Список товаров [{product_id, product_name, product_price, quantity}]
-            delivery_address: Адрес доставки
-            recipient_name: Имя получателя
-            recipient_phone: Телефон получателя
-            comment: Комментарий к заказу
+            product_id: ID товара
+            size: Размер товара
+            customer_contact: Контактные данные клиента
 
         Returns:
             Созданный заказ
         """
-        # Расчёт общей суммы
-        total_amount = Decimal("0")
-        for item in items:
-            total_amount += Decimal(str(item["product_price"])) * item["quantity"]
-
-        # Создание заказа
-        order = Order(
+        order = await self.create(
             user_id=user_id,
-            total_amount=total_amount,
-            delivery_address=delivery_address,
-            recipient_name=recipient_name,
-            recipient_phone=recipient_phone,
-            comment=comment,
-            status=OrderStatus.PENDING.value,
-            payment_status=PaymentStatus.PENDING.value,
+            product_id=product_id,
+            size=size,
+            customer_contact=customer_contact,
+            status="new",
         )
-        self.session.add(order)
-        await self.session.flush()
-
-        # Создание элементов заказа
-        for item in items:
-            order_item = OrderItem(
-                order_id=order.id,
-                product_id=item["product_id"],
-                product_name=item["product_name"],
-                product_price=Decimal(str(item["product_price"])),
-                quantity=item["quantity"],
-            )
-            self.session.add(order_item)
-
-        await self.session.commit()
-        await self.session.refresh(order)
         return order
 
-    async def update_status(
-        self, order_id: int, status: OrderStatus
-    ) -> Order | None:
+    async def update_status(self, order_id: int, status: str) -> Order | None:
         """Обновить статус заказа.
 
         Args:
@@ -125,26 +91,21 @@ class OrderRepository(BaseRepository[Order]):
         Returns:
             Обновлённый заказ или None
         """
-        return await self.update(order_id, status=status.value)
+        return await self.update(order_id, status=status)
 
-    async def update_payment_status(
-        self, order_id: int, payment_status: PaymentStatus, payment_id: str | None = None
+    async def add_admin_notes(
+        self, order_id: int, notes: str
     ) -> Order | None:
-        """Обновить статус оплаты заказа.
+        """Добавить заметки администратора к заказу.
 
         Args:
             order_id: ID заказа
-            payment_status: Новый статус оплаты
-            payment_id: ID платежа в платёжной системе
+            notes: Заметки администратора
 
         Returns:
             Обновлённый заказ или None
         """
-        update_data = {"payment_status": payment_status.value}
-        if payment_id:
-            update_data["payment_id"] = payment_id
-
-        return await self.update(order_id, **update_data)
+        return await self.update(order_id, admin_notes=notes)
 
     async def cancel_order(self, order_id: int) -> Order | None:
         """Отменить заказ.
@@ -155,8 +116,4 @@ class OrderRepository(BaseRepository[Order]):
         Returns:
             Обновлённый заказ или None
         """
-        return await self.update(
-            order_id,
-            status=OrderStatus.CANCELLED.value,
-            payment_status=PaymentStatus.CANCELLED.value,
-        )
+        return await self.update(order_id, status="cancelled")
