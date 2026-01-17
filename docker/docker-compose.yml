@@ -67,6 +67,8 @@ services:
       # Bot
       BOT_TOKEN: ${BOT_TOKEN}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ADMIN_IDS: ${ADMIN_IDS:-}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
     depends_on:
       postgres:
         condition: service_healthy
