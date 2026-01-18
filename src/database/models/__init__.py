@@ -3,6 +3,7 @@
 from src.database.models.admin_log import AdminLog
 from src.database.models.broadcast import Broadcast
 from src.database.models.category import Category
+from src.database.models.moderated_message import ModeratedMessage
 from src.database.models.order import Order
 from src.database.models.product import Product
 from src.database.models.review import Review
@@ -18,4 +19,5 @@ __all__ = [
     "Broadcast",
     "SpamPattern",
     "AdminLog",
+    "ModeratedMessage",
 ]
