@@ -3,6 +3,7 @@
 from aiogram.filters import BaseFilter
 from aiogram.types import Message
 
+from src.core.constants import UserRole
 from src.database.models.user import User
 
 
@@ -49,7 +50,7 @@ class IsAdmin(BaseFilter):
         if not user:
             return False
 
-        return user.role in ["admin", "super_admin"]
+        return user.role in [UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value]
 
 
 class IsSuperAdmin(BaseFilter):
@@ -68,7 +69,7 @@ class IsSuperAdmin(BaseFilter):
         if not user:
             return False
 
-        return user.role == "super_admin"
+        return user.role == UserRole.SUPER_ADMIN.value
 
 
 class IsUser(BaseFilter):
@@ -87,4 +88,4 @@ class IsUser(BaseFilter):
         if not user:
             return False
 
-        return user.role == "user"
+        return user.role == UserRole.USER.value

@@ -5,6 +5,7 @@ from typing import Any, Awaitable, Callable
 from aiogram import BaseMiddleware
 from aiogram.types import Message, TelegramObject, Update, User as TelegramUser
 
+from src.core.constants import UserRole
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.user import UserRepository
@@ -134,10 +135,10 @@ class RoleMiddleware(BaseMiddleware):
         # Проверка роли
         has_access = False
 
-        if self.required_role == "admin":
-            has_access = user.role in ["admin", "super_admin"]
-        elif self.required_role == "super_admin":
-            has_access = user.role == "super_admin"
+        if self.required_role == UserRole.ADMIN.value:
+            has_access = user.role in [UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value]
+        elif self.required_role == UserRole.SUPER_ADMIN.value:
+            has_access = user.role == UserRole.SUPER_ADMIN.value
 
         if not has_access:
             logger.warning(

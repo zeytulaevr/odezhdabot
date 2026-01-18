@@ -3,6 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.constants import UserRole
 from src.database.models.user import User
 from src.database.repositories.base import BaseRepository
 
@@ -85,7 +86,9 @@ class UserRepository(BaseRepository[User]):
         Returns:
             Список администраторов
         """
-        stmt = select(User).where(User.role.in_(["admin", "super_admin"]))
+        stmt = select(User).where(
+            User.role.in_([UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value])
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
