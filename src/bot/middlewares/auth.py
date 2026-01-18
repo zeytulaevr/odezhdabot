@@ -56,6 +56,18 @@ class AuthMiddleware(BaseMiddleware):
                 username=telegram_user.username,
             )
 
+            # Автоматическое назначение роли super_admin для пользователей из ADMIN_IDS
+            from src.core.config import settings
+            if telegram_user.id in settings.admin_ids and user.role != UserRole.SUPER_ADMIN.value:
+                user.role = UserRole.SUPER_ADMIN.value
+                await user_repo.session.commit()
+                await user_repo.session.refresh(user)
+                logger.info(
+                    "User role updated to super_admin",
+                    user_id=user.id,
+                    telegram_id=user.telegram_id,
+                )
+
             if is_new:
                 logger.info(
                     "New user registered",
@@ -63,6 +75,7 @@ class AuthMiddleware(BaseMiddleware):
                     telegram_id=user.telegram_id,
                     username=user.username,
                     full_name=user.full_name,
+                    role=user.role,
                 )
 
             # Проверка блокировки
