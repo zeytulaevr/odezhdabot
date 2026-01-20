@@ -3,11 +3,14 @@
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.filters.role import IsSuperAdmin
 from src.bot.keyboards.main_menu import get_superadmin_menu, get_superadmin_panel_keyboard
+from src.bot.keyboards.products import get_products_menu_keyboard, get_categories_manage_keyboard
 from src.core.logging import get_logger
 from src.database.models.user import User
+from src.database.repositories.category import CategoryRepository
 
 logger = get_logger(__name__)
 
@@ -125,28 +128,119 @@ async def show_settings_menu(message: Message, user: User) -> None:
     await message.answer(text=text, parse_mode="HTML")
 
 
+@router.callback_query(F.data == "separator")
+async def separator_handler(callback: CallbackQuery) -> None:
+    """Handler for separator buttons (non-interactive)."""
+    await callback.answer()
+
+
 @router.callback_query(F.data.startswith("superadmin:"), IsSuperAdmin())
-async def process_superadmin_callback(callback: CallbackQuery, user: User) -> None:
+async def process_superadmin_callback(
+    callback: CallbackQuery,
+    user: User,
+    session: AsyncSession,
+) -> None:
     """Обработка callback от супер-админ панели.
 
     Args:
         callback: Callback query
         user: Пользователь из БД
+        session: Сессия БД
     """
-    await callback.answer()
+    parts = callback.data.split(":")
+    action = parts[1] if len(parts) > 1 else None
+    subaction = parts[2] if len(parts) > 2 else None
 
-    action = callback.data.split(":")[1] if ":" in callback.data else None
-
+    # Товары
     if action == "products":
-        text = "📦 <b>Товары</b>\n\nФункционал в разработке..."
+        if subaction == "add":
+            # Переход к диалогу добавления товара
+            # Меняем callback.data чтобы вызвался правильный обработчик
+            callback.data = "prod_add_dialog"
+            from src.bot.handlers.superadmin.products.add_dialog import start_add_product
+            from aiogram.fsm.context import FSMContext
+            state = FSMContext(
+                storage=callback.bot.fsm.storage,
+                key=callback.bot.fsm.resolve_context_key(
+                    bot=callback.bot,
+                    chat_id=callback.message.chat.id,
+                    user_id=user.telegram_id,
+                ),
+            )
+            await start_add_product(callback, state)
+            return
+        else:
+            # Меню управления товарами
+            await callback.answer()
+            text = (
+                "🛍 <b>Управление товарами</b>\n\n"
+                "Выберите действие:"
+            )
+            keyboard = get_products_menu_keyboard()
+            if callback.message:
+                await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+            return
+
+    # Категории
+    elif action == "categories":
+        await callback.answer()
+        category_repo = CategoryRepository(session)
+        categories = await category_repo.get_all()
+
+        text = (
+            f"📁 <b>Управление категориями</b>\n\n"
+            f"Всего категорий: {len(categories)}\n\n"
+            f"✅ - активна\n"
+            f"🔗 - привязан thread_id"
+        )
+        keyboard = get_categories_manage_keyboard(categories)
+        if callback.message:
+            await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        return
+
+    # Модерация
+    elif action == "reviews" or action == "moderation":
+        await callback.answer()
+        text = (
+            "🔧 <b>Модерация</b>\n\n"
+            "Доступные команды:\n"
+            "• /modqueue - очередь модерации\n"
+            "• /spam - управление спам-паттернами"
+        )
+        if callback.message:
+            await callback.message.edit_text(text, parse_mode="HTML")
+        return
+
+    # Остальные действия
+    elif action == "orders":
+        text = "📋 <b>Заказы</b>\n\nФункционал в разработке..."
     elif action == "broadcast":
         text = "📢 <b>Рассылка</b>\n\nФункционал в разработке..."
-    elif action == "moderation":
-        text = "🔧 <b>Модерация</b>\n\nФункционал в разработке..."
+    elif action == "users":
+        text = "👤 <b>Пользователи</b>\n\nФункционал в разработке..."
     elif action == "settings":
         text = "⚙️ <b>Настройки</b>\n\nФункционал в разработке..."
+    elif action == "help":
+        text = (
+            "ℹ️ <b>Помощь</b>\n\n"
+            "<b>Доступные команды:</b>\n"
+            "• /superadmin - панель супер-админа\n"
+            "• /products - управление товарами\n"
+            "• /modqueue - очередь модерации\n"
+            "• /spam - управление спам-паттернами\n\n"
+            "<b>Управление товарами:</b>\n"
+            "• Добавление через диалог\n"
+            "• Загрузка из Excel/CSV файла\n"
+            "• Редактирование и удаление\n"
+            "• Публикация в канал\n\n"
+            "<b>Модерация:</b>\n"
+            "• Автоматическая проверка спама\n"
+            "• Ручная модерация отзывов\n"
+            "• Настройка спам-фильтров"
+        )
     else:
         text = "⚠️ Неизвестное действие"
 
+    await callback.answer()
     if callback.message:
         await callback.message.edit_text(text=text, parse_mode="HTML")

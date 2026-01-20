@@ -124,6 +124,18 @@ class Settings(BaseSettings):
         return [int(v)]
 
     # ========================================
+    # CHANNEL SETTINGS
+    # ========================================
+    channel_id: int | None = Field(
+        default=None,
+        description="ID канала для публикации товаров (можно получить через @userinfobot)"
+    )
+    review_channel_id: int | None = Field(
+        default=None,
+        description="ID канала для отзывов (с форумом/threads)"
+    )
+
+    # ========================================
     # PAYMENT SETTINGS
     # ========================================
     payment_token: str | None = Field(default=None, description="Токен платёжной системы")

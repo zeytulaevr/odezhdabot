@@ -10,6 +10,7 @@ from enum import Enum
 class UserRole(str, Enum):
     """Роли пользователей в системе."""
 
+    SUPER_ADMIN = "super_admin"
     ADMIN = "admin"
     MODERATOR = "moderator"
     USER = "user"

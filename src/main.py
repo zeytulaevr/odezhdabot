@@ -9,7 +9,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 
-from src.bot.handlers import admin, common, superadmin, user
+from src.bot.handlers import admin, common, moderation, superadmin, user
 from src.bot.middlewares.auth import AuthMiddleware
 from src.bot.middlewares.database import DatabaseMiddleware
 from src.bot.middlewares.logging import LoggingMiddleware
@@ -108,6 +108,9 @@ def setup_handlers(dp: Dispatcher) -> None:
     # Затем хендлеры с проверкой ролей
     dp.include_router(superadmin.router)
     dp.include_router(admin.router)
+
+    # Модерация каналов (важно подключить после авторизации)
+    dp.include_router(moderation.router)
 
     # Здесь можно добавить другие роутеры:
     # dp.include_router(catalog.router)

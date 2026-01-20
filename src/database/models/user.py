@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import BigInteger, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.constants import UserRole
 from src.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
@@ -55,7 +56,7 @@ class User(Base, TimestampMixin):
 
     # Роль пользователя: 'user', 'admin', 'super_admin'
     role: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="user", comment="Роль пользователя"
+        String(20), nullable=False, default=UserRole.USER.value, comment="Роль пользователя"
     )
 
     # Статус блокировки
@@ -75,9 +76,9 @@ class User(Base, TimestampMixin):
     @property
     def is_admin(self) -> bool:
         """Проверка, является ли пользователь администратором."""
-        return self.role in ["admin", "super_admin"]
+        return self.role in [UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value]
 
     @property
     def is_super_admin(self) -> bool:
         """Проверка, является ли пользователь супер-администратором."""
-        return self.role == "super_admin"
+        return self.role == UserRole.SUPER_ADMIN.value

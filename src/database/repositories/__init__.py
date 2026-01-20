@@ -4,6 +4,7 @@ from src.database.repositories.admin_log import AdminLogRepository
 from src.database.repositories.base import BaseRepository
 from src.database.repositories.broadcast import BroadcastRepository
 from src.database.repositories.category import CategoryRepository
+from src.database.repositories.moderated_message import ModeratedMessageRepository
 from src.database.repositories.order import OrderRepository
 from src.database.repositories.product import ProductRepository
 from src.database.repositories.review import ReviewRepository
@@ -20,4 +21,5 @@ __all__ = [
     "BroadcastRepository",
     "SpamPatternRepository",
     "AdminLogRepository",
+    "ModeratedMessageRepository",
 ]

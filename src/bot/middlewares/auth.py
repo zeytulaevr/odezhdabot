@@ -5,6 +5,7 @@ from typing import Any, Awaitable, Callable
 from aiogram import BaseMiddleware
 from aiogram.types import Message, TelegramObject, Update, User as TelegramUser
 
+from src.core.constants import UserRole
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.user import UserRepository
@@ -55,6 +56,18 @@ class AuthMiddleware(BaseMiddleware):
                 username=telegram_user.username,
             )
 
+            # Автоматическое назначение роли super_admin для пользователей из ADMIN_IDS
+            from src.core.config import settings
+            if telegram_user.id in settings.admin_ids and user.role != UserRole.SUPER_ADMIN.value:
+                user.role = UserRole.SUPER_ADMIN.value
+                await user_repo.session.commit()
+                await user_repo.session.refresh(user)
+                logger.info(
+                    "User role updated to super_admin",
+                    user_id=user.id,
+                    telegram_id=user.telegram_id,
+                )
+
             if is_new:
                 logger.info(
                     "New user registered",
@@ -62,6 +75,7 @@ class AuthMiddleware(BaseMiddleware):
                     telegram_id=user.telegram_id,
                     username=user.username,
                     full_name=user.full_name,
+                    role=user.role,
                 )
 
             # Проверка блокировки
@@ -134,10 +148,10 @@ class RoleMiddleware(BaseMiddleware):
         # Проверка роли
         has_access = False
 
-        if self.required_role == "admin":
-            has_access = user.role in ["admin", "super_admin"]
-        elif self.required_role == "super_admin":
-            has_access = user.role == "super_admin"
+        if self.required_role == UserRole.ADMIN.value:
+            has_access = user.role in [UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value]
+        elif self.required_role == UserRole.SUPER_ADMIN.value:
+            has_access = user.role == UserRole.SUPER_ADMIN.value
 
         if not has_access:
             logger.warning(
