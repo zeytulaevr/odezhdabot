@@ -151,11 +151,17 @@ async def publish_product(
 
     product_service = ProductService(session)
 
+    # Проверяем наличие channel_id в конфиге
+    if not settings.channel_id:
+        await callback.answer(
+            "❌ Канал не настроен. Добавьте CHANNEL_ID в .env файл",
+            show_alert=True,
+        )
+        return
+
     try:
-        # TODO: получить channel_id из конфига
-        channel_id = settings.admin_ids[0]  # Временно
         message_id = await product_service.publish_to_channel(
-            product_id, callback.bot, channel_id
+            product_id, callback.bot, settings.channel_id
         )
 
         await callback.answer(f"✅ Опубликовано (ID: {message_id})", show_alert=True)
