@@ -136,7 +136,8 @@ async def process_price(
         )
         return
 
-    await state.update_data(price=price)
+    # Store as string for JSON serialization in Redis
+    await state.update_data(price=str(price))
 
     text = (
         "✅ Цена сохранена\n\n"
@@ -204,9 +205,12 @@ async def process_category(
     product_service = ProductService(session)
 
     try:
+        # Convert price string back to Decimal
+        price = Decimal(data["price"])
+
         product = await product_service.add_product(
             name=data["name"],
-            price=data["price"],
+            price=price,
             category_id=category_id,
             sizes=data["sizes"],
             description=data.get("description"),

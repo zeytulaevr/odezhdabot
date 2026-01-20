@@ -21,7 +21,7 @@ class CategoryStates(StatesGroup):
     """Состояния для работы с категориями."""
 
     ADD_NAME = State()
-    RENAME = State()
+    RENAME_NAME = State()
     SET_THREAD = State()
 
 
@@ -178,6 +178,58 @@ async def set_thread_id(
     if category:
         await session.commit()
         text = f"✅ Thread ID привязан: {thread_id}"
+
+        keyboard = get_category_actions_keyboard(category.id)
+        await message.answer(text, reply_markup=keyboard)
+    else:
+        await message.answer("❌ Ошибка обновления")
+
+    await state.clear()
+
+
+@router.callback_query(F.data.startswith("cat_rename:"), IsSuperAdmin())
+async def rename_category_start(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Начать переименование категории."""
+    category_id = int(callback.data.split(":")[1])
+
+    await callback.answer()
+    await state.update_data(category_id=category_id)
+
+    text = (
+        "✏️ <b>Переименование категории</b>\n\n"
+        "Введите новое название категории\n\n"
+        "Отправьте /cancel для отмены"
+    )
+
+    await callback.message.edit_text(text, parse_mode="HTML")
+    await state.set_state(CategoryStates.RENAME_NAME)
+
+
+@router.message(IsSuperAdmin(), CategoryStates.RENAME_NAME, F.text)
+async def rename_category_name(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
+    """Переименовать категорию."""
+    name = message.text.strip()
+
+    if len(name) < 2:
+        await message.answer("❌ Название слишком короткое")
+        return
+
+    data = await state.get_data()
+    category_id = data["category_id"]
+
+    category_repo = CategoryRepository(session)
+    category = await category_repo.update(category_id, name=name)
+
+    if category:
+        await session.commit()
+        text = f"✅ Категория переименована: {name}"
 
         keyboard = get_category_actions_keyboard(category.id)
         await message.answer(text, reply_markup=keyboard)

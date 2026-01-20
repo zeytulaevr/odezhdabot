@@ -252,12 +252,13 @@ async def callback_ban_user(
 
 
 @router.callback_query(F.data == "modqueue_refresh", IsAdmin())
+@router.callback_query(F.data == "modqueue_next", IsAdmin())
 async def callback_refresh_queue(
     callback: CallbackQuery,
     user: User,
     session: AsyncSession,
 ) -> None:
-    """Обновить очередь модерации.
+    """Обновить очередь модерации или показать следующие сообщения.
 
     Args:
         callback: Callback query
@@ -294,6 +295,60 @@ async def callback_moderation_stats(
         f"❌ Отклонено: <b>{stats['rejected']}</b>\n"
         f"⏳ На проверке: <b>{stats['pending']}</b>\n"
     )
+
+    await callback.answer()
+    await callback.message.answer(text, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("mod_details:"), IsAdmin())
+async def callback_message_details(
+    callback: CallbackQuery,
+    user: User,
+    session: AsyncSession,
+) -> None:
+    """Показать подробную информацию о сообщении.
+
+    Args:
+        callback: Callback query
+        user: Админ
+        session: Сессия БД
+    """
+    moderated_msg_id = int(callback.data.split(":")[1])
+
+    mod_repo = ModeratedMessageRepository(session)
+    moderated_msg = await mod_repo.get(moderated_msg_id)
+
+    if not moderated_msg:
+        await callback.answer("❌ Сообщение не найдено", show_alert=True)
+        return
+
+    user_info = "Unknown"
+    if moderated_msg.user:
+        user_info = (
+            f"@{moderated_msg.user.username}" if moderated_msg.user.username
+            else f"ID: {moderated_msg.user.telegram_id}"
+        )
+
+    text = (
+        f"📋 <b>Подробная информация</b>\n\n"
+        f"👤 Пользователь: {user_info}\n"
+        f"💬 ID сообщения: <code>{moderated_msg.message_id}</code>\n"
+        f"📊 Спам-скор: <code>{moderated_msg.spam_score}/100</code>\n"
+        f"📅 Дата: {moderated_msg.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        f"🔖 Статус: {moderated_msg.status}\n\n"
+        f"📝 <b>Полный текст:</b>\n"
+        f"<code>{moderated_msg.text}</code>\n"
+    )
+
+    if moderated_msg.spam_reasons:
+        try:
+            reasons = json.loads(moderated_msg.spam_reasons)
+            if reasons:
+                text += f"\n⚠️ <b>Причины подозрений:</b>\n"
+                for reason in reasons:
+                    text += f"• {reason}\n"
+        except json.JSONDecodeError:
+            pass
 
     await callback.answer()
     await callback.message.answer(text, parse_mode="HTML")

@@ -45,14 +45,6 @@ def get_product_actions_keyboard(product_id: int, is_active: bool = True) -> Inl
     """
     builder = InlineKeyboardBuilder()
 
-    # Редактировать
-    builder.row(
-        InlineKeyboardButton(
-            text="✏️ Редактировать",
-            callback_data=f"prod_edit:{product_id}",
-        )
-    )
-
     # Опубликовать в канал
     builder.row(
         InlineKeyboardButton(

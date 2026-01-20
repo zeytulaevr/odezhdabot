@@ -26,6 +26,12 @@ router = Router(name="product_manage")
 PRODUCTS_PER_PAGE = 10
 
 
+@router.callback_query(F.data == "noop")
+async def noop_handler(callback: CallbackQuery) -> None:
+    """Handler for non-interactive buttons (like page counter)."""
+    await callback.answer()
+
+
 @router.message(Command("products"), IsSuperAdmin())
 @router.callback_query(F.data == "products_menu", IsSuperAdmin())
 async def products_menu(

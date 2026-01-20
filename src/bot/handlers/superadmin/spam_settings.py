@@ -334,12 +334,13 @@ async def process_pattern_input(
 
 
 @router.callback_query(F.data == "spam_list", IsSuperAdmin())
+@router.callback_query(F.data.startswith("spam_page:"), IsSuperAdmin())
 async def callback_spam_list(
     callback: CallbackQuery,
     user: User,
     session: AsyncSession,
 ) -> None:
-    """Вернуться к списку паттернов.
+    """Вернуться к списку паттернов или перейти на другую страницу.
 
     Args:
         callback: Callback query
