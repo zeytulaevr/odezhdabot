@@ -11,6 +11,7 @@ from src.bot.keyboards.products import get_categories_manage_keyboard, get_categ
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.category import CategoryRepository
+from src.utils.navigation import edit_message_with_navigation
 
 logger = get_logger(__name__)
 
@@ -29,10 +30,9 @@ class CategoryStates(StatesGroup):
 async def categories_list(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Список категорий."""
-    await callback.answer()
-
     category_repo = CategoryRepository(session)
     categories = await category_repo.get_all()
 
@@ -45,18 +45,22 @@ async def categories_list(
 
     keyboard = get_categories_manage_keyboard(categories)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await edit_message_with_navigation(
+        callback=callback,
+        state=state,
+        text=text,
+        markup=keyboard,
+    )
 
 
 @router.callback_query(F.data.startswith("cat_view:"), IsSuperAdmin())
 async def view_category(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Просмотр категории."""
     category_id = int(callback.data.split(":")[1])
-
-    await callback.answer()
 
     category_repo = CategoryRepository(session)
     category = await category_repo.get(category_id)
@@ -78,7 +82,12 @@ async def view_category(
 
     keyboard = get_category_actions_keyboard(category.id)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await edit_message_with_navigation(
+        callback=callback,
+        state=state,
+        text=text,
+        markup=keyboard,
+    )
 
 
 @router.callback_query(F.data == "cat_add", IsSuperAdmin())
