@@ -196,6 +196,7 @@ async def publish_product(
 async def activate_product(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Активировать товар."""
     product_id = int(callback.data.split(":")[1])
@@ -204,13 +205,14 @@ async def activate_product(
     await product_service.activate_product(product_id)
 
     await callback.answer("✅ Товар активирован")
-    await view_product(callback, session)
+    await view_product(callback, session, state)
 
 
 @router.callback_query(F.data.startswith("prod_deactivate:"), IsSuperAdmin())
 async def deactivate_product(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Деактивировать товар."""
     product_id = int(callback.data.split(":")[1])
@@ -219,23 +221,38 @@ async def deactivate_product(
     await product_service.deactivate_product(product_id)
 
     await callback.answer("✅ Товар деактивирован")
-    await view_product(callback, session)
+    await view_product(callback, session, state)
 
 
 @router.callback_query(F.data.startswith("prod_delete:"), IsSuperAdmin())
 async def delete_product_confirm(
     callback: CallbackQuery,
+    state: FSMContext,
 ) -> None:
     """Подтверждение удаления."""
     product_id = int(callback.data.split(":")[1])
 
-    await callback.answer()
-
     text = "⚠️ <b>Удаление товара</b>\n\nВы уверены?"
-
     keyboard = get_confirm_delete_keyboard(product_id)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    # Проверяем, есть ли фото в сообщении
+    if callback.message.photo:
+        # Если есть фото, удаляем сообщение и отправляем новое
+        await callback.message.delete()
+        await callback.message.answer(
+            text=text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+        await callback.answer()
+    else:
+        # Обычное редактирование текста
+        await edit_message_with_navigation(
+            callback=callback,
+            state=state,
+            text=text,
+            markup=keyboard,
+        )
 
 
 @router.callback_query(F.data.startswith("prod_delete_confirm:"), IsSuperAdmin())
