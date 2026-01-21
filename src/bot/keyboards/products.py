@@ -276,8 +276,8 @@ def get_category_actions_keyboard(category_id: int) -> InlineKeyboardMarkup:
 
     builder.row(
         InlineKeyboardButton(
-            text="🔗 Привязать thread_id",
-            callback_data=f"cat_thread:{category_id}",
+            text="🔗 Привязать к теме",
+            callback_data=f"cat_thread_menu:{category_id}",
         )
     )
 
@@ -290,6 +290,79 @@ def get_category_actions_keyboard(category_id: int) -> InlineKeyboardMarkup:
 
     builder.row(
         InlineKeyboardButton(text="◀️ Назад", callback_data="categories_manage")
+    )
+
+    return builder.as_markup()
+
+
+def get_thread_link_method_keyboard(category_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура выбора способа привязки темы.
+
+    Args:
+        category_id: ID категории
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🆕 Создать новую тему",
+            callback_data=f"cat_thread_create:{category_id}",
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🔢 Ввести thread_id вручную",
+            callback_data=f"cat_thread_manual:{category_id}",
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data=f"cat_view:{category_id}",
+        )
+    )
+
+    return builder.as_markup()
+
+
+def get_thread_color_keyboard(category_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура выбора цвета иконки темы.
+
+    Args:
+        category_id: ID категории
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    colors = [
+        ("🔵 Синий", "blue"),
+        ("🟡 Желтый", "yellow"),
+        ("🟣 Фиолетовый", "purple"),
+        ("🟢 Зеленый", "green"),
+        ("🌸 Розовый", "pink"),
+        ("🔴 Красный", "red"),
+    ]
+
+    for text, color in colors:
+        builder.row(
+            InlineKeyboardButton(
+                text=text,
+                callback_data=f"cat_thread_color:{category_id}:{color}",
+            )
+        )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data=f"cat_thread_menu:{category_id}",
+        )
     )
 
     return builder.as_markup()
