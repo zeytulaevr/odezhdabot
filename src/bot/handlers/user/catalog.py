@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.bot.keyboards.main_menu import get_user_menu
 from src.bot.keyboards.orders import get_size_selection_keyboard
 from src.core.logging import get_logger
 from src.database.models.user import User
@@ -19,6 +20,30 @@ logger = get_logger(__name__)
 router = Router(name="user_catalog")
 
 PRODUCTS_PER_PAGE = 5  # Товаров на странице
+
+
+@router.callback_query(F.data == "noop")
+async def noop_handler(callback: CallbackQuery) -> None:
+    """Обработчик для неинтерактивных кнопок (счетчики и т.п.)."""
+    await callback.answer()
+
+
+@router.callback_query(F.data == "back_to_menu")
+async def back_to_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    """Вернуться в главное меню."""
+    await NavigationStack.clear(state)
+
+    text = (
+        "🏠 <b>Главное меню</b>\n\n"
+        "Выберите действие:"
+    )
+
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_user_menu(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
 
 
 async def build_catalog_keyboard(categories: list):
