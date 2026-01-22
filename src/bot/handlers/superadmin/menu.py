@@ -222,7 +222,10 @@ async def process_superadmin_callback(
     elif action == "orders":
         text = "📋 <b>Заказы</b>\n\nФункционал в разработке..."
     elif action == "broadcast":
-        text = "📢 <b>Рассылка</b>\n\nФункционал в разработке..."
+        # Перенаправление на меню рассылок
+        from src.bot.handlers.superadmin.broadcast.history import show_broadcast_menu as broadcast_main
+        await broadcast_main(callback, state)
+        return
     elif action == "users":
         text = "👤 <b>Пользователи</b>\n\nФункционал в разработке..."
     elif action == "settings":
