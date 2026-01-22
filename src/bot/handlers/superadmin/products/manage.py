@@ -4,6 +4,7 @@ import math
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,7 @@ from src.core.config import settings
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.services.product_service import ProductService
+from src.utils.navigation import edit_message_with_navigation
 
 logger = get_logger(__name__)
 
@@ -58,6 +60,7 @@ async def products_menu(
 async def products_list(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Список всех товаров."""
     # Получаем номер страницы
@@ -65,8 +68,6 @@ async def products_list(
         page = int(callback.data.split(":")[1])
     else:
         page = 0
-
-    await callback.answer()
 
     product_service = ProductService(session)
 
@@ -91,18 +92,22 @@ async def products_list(
         )
         keyboard = get_products_list_keyboard(products, page, total_pages)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await edit_message_with_navigation(
+        callback=callback,
+        state=state,
+        text=text,
+        markup=keyboard,
+    )
 
 
 @router.callback_query(F.data.startswith("prod_view:"), IsSuperAdmin())
 async def view_product(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Просмотр товара."""
     product_id = int(callback.data.split(":")[1])
-
-    await callback.answer()
 
     product_service = ProductService(session)
     product = await product_service.get_product(product_id)
@@ -125,8 +130,19 @@ async def view_product(
     if product.description:
         text += f"<b>Описание:</b>\n{product.description}\n\n"
 
+    keyboard = get_product_actions_keyboard(product.id, product.is_active)
+
     if product.photo_file_id:
-        keyboard = get_product_actions_keyboard(product.id, product.is_active)
+        # Сохраняем в историю с фото
+        from src.utils.navigation import NavigationStack
+        await NavigationStack.push(
+            state=state,
+            text=text,
+            markup=keyboard,
+            photo_file_id=product.photo_file_id,
+            callback_data=callback.data,
+        )
+
         await callback.message.delete()
         await callback.message.answer_photo(
             photo=product.photo_file_id,
@@ -134,9 +150,14 @@ async def view_product(
             reply_markup=keyboard,
             parse_mode="HTML",
         )
+        await callback.answer()
     else:
-        keyboard = get_product_actions_keyboard(product.id, product.is_active)
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        await edit_message_with_navigation(
+            callback=callback,
+            state=state,
+            text=text,
+            markup=keyboard,
+        )
 
 
 @router.callback_query(F.data.startswith("prod_publish:"), IsSuperAdmin())
@@ -175,6 +196,7 @@ async def publish_product(
 async def activate_product(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Активировать товар."""
     product_id = int(callback.data.split(":")[1])
@@ -183,13 +205,14 @@ async def activate_product(
     await product_service.activate_product(product_id)
 
     await callback.answer("✅ Товар активирован")
-    await view_product(callback, session)
+    await view_product(callback, session, state)
 
 
 @router.callback_query(F.data.startswith("prod_deactivate:"), IsSuperAdmin())
 async def deactivate_product(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Деактивировать товар."""
     product_id = int(callback.data.split(":")[1])
@@ -198,23 +221,38 @@ async def deactivate_product(
     await product_service.deactivate_product(product_id)
 
     await callback.answer("✅ Товар деактивирован")
-    await view_product(callback, session)
+    await view_product(callback, session, state)
 
 
 @router.callback_query(F.data.startswith("prod_delete:"), IsSuperAdmin())
 async def delete_product_confirm(
     callback: CallbackQuery,
+    state: FSMContext,
 ) -> None:
     """Подтверждение удаления."""
     product_id = int(callback.data.split(":")[1])
 
-    await callback.answer()
-
     text = "⚠️ <b>Удаление товара</b>\n\nВы уверены?"
-
     keyboard = get_confirm_delete_keyboard(product_id)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    # Проверяем, есть ли фото в сообщении
+    if callback.message.photo:
+        # Если есть фото, удаляем сообщение и отправляем новое
+        await callback.message.delete()
+        await callback.message.answer(
+            text=text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+        await callback.answer()
+    else:
+        # Обычное редактирование текста
+        await edit_message_with_navigation(
+            callback=callback,
+            state=state,
+            text=text,
+            markup=keyboard,
+        )
 
 
 @router.callback_query(F.data.startswith("prod_delete_confirm:"), IsSuperAdmin())

@@ -13,8 +13,8 @@ def get_user_menu() -> InlineKeyboardMarkup:
 
     # Первый ряд
     builder.row(
-        InlineKeyboardButton(text="📦 Каталог", callback_data="user:catalog"),
-        InlineKeyboardButton(text="🛍 Мои заказы", callback_data="user:orders"),
+        InlineKeyboardButton(text="📦 Каталог", callback_data="catalog"),
+        InlineKeyboardButton(text="🛍 Мои заказы", callback_data="my_orders"),
     )
 
     # Второй ряд

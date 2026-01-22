@@ -181,7 +181,7 @@ class ProductService:
     async def publish_to_channel(
         self, product_id: int, bot: Bot, channel_id: int
     ) -> int | None:
-        """Опубликовать товар в канал Telegram.
+        """Опубликовать товар в канал Telegram с кнопкой заказа.
 
         Args:
             product_id: ID товара
@@ -194,6 +194,8 @@ class ProductService:
         Raises:
             ValueError: Если товар не найден или нет фото
         """
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
         product = await self.get_product(product_id)
         if not product:
             raise ValueError(f"Товар с ID {product_id} не найден")
@@ -207,6 +209,21 @@ class ProductService:
         # Определяем thread_id из категории
         thread_id = product.category.thread_id if product.category else None
 
+        # Создаем кнопку с deep link для заказа
+        bot_info = await bot.get_me()
+        deep_link = f"https://t.me/{bot_info.username}?start=order_{product_id}"
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🛒 Заказать",
+                        url=deep_link
+                    )
+                ]
+            ]
+        )
+
         logger.info(
             "Publishing product to channel",
             product_id=product_id,
@@ -215,13 +232,14 @@ class ProductService:
         )
 
         try:
-            # Отправляем фото с текстом
+            # Отправляем фото с текстом и кнопкой
             message = await bot.send_photo(
                 chat_id=channel_id,
                 photo=product.photo_file_id,
                 caption=text,
                 parse_mode="HTML",
                 message_thread_id=thread_id,
+                reply_markup=keyboard,
             )
 
             logger.info(

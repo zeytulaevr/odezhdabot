@@ -7,10 +7,18 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.filters.role import IsSuperAdmin
-from src.bot.keyboards.products import get_categories_manage_keyboard, get_category_actions_keyboard
+from src.bot.keyboards.products import (
+    get_categories_manage_keyboard,
+    get_category_actions_keyboard,
+    get_thread_link_method_keyboard,
+    get_thread_color_keyboard,
+)
+from src.core.config import settings
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.category import CategoryRepository
+from src.services.forum_service import ForumService
+from src.utils.navigation import edit_message_with_navigation
 
 logger = get_logger(__name__)
 
@@ -22,17 +30,16 @@ class CategoryStates(StatesGroup):
 
     ADD_NAME = State()
     RENAME_NAME = State()
-    SET_THREAD = State()
+    SET_THREAD_MANUAL = State()
 
 
 @router.callback_query(F.data == "categories_manage", IsSuperAdmin())
 async def categories_list(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Список категорий."""
-    await callback.answer()
-
     category_repo = CategoryRepository(session)
     categories = await category_repo.get_all()
 
@@ -45,18 +52,22 @@ async def categories_list(
 
     keyboard = get_categories_manage_keyboard(categories)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await edit_message_with_navigation(
+        callback=callback,
+        state=state,
+        text=text,
+        markup=keyboard,
+    )
 
 
 @router.callback_query(F.data.startswith("cat_view:"), IsSuperAdmin())
 async def view_category(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Просмотр категории."""
     category_id = int(callback.data.split(":")[1])
-
-    await callback.answer()
 
     category_repo = CategoryRepository(session)
     category = await category_repo.get(category_id)
@@ -78,7 +89,12 @@ async def view_category(
 
     keyboard = get_category_actions_keyboard(category.id)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await edit_message_with_navigation(
+        callback=callback,
+        state=state,
+        text=text,
+        markup=keyboard,
+    )
 
 
 @router.callback_query(F.data == "cat_add", IsSuperAdmin())
@@ -135,34 +151,154 @@ async def add_category_name(
         await message.answer(f"❌ Ошибка: {str(e)}")
 
 
-@router.callback_query(F.data.startswith("cat_thread:"), IsSuperAdmin())
-async def set_thread_start(
+@router.callback_query(F.data.startswith("cat_thread_menu:"), IsSuperAdmin())
+async def thread_link_menu(
     callback: CallbackQuery,
     state: FSMContext,
 ) -> None:
-    """Начать привязку thread_id."""
+    """Меню выбора способа привязки темы."""
+    category_id = int(callback.data.split(":")[1])
+
+    text = (
+        "🔗 <b>Привязка к теме форума</b>\n\n"
+        "Выберите способ привязки категории к теме:"
+    )
+
+    keyboard = get_thread_link_method_keyboard(category_id)
+
+    await edit_message_with_navigation(
+        callback=callback,
+        state=state,
+        text=text,
+        markup=keyboard,
+    )
+
+
+@router.callback_query(F.data.startswith("cat_thread_create:"), IsSuperAdmin())
+async def create_thread_select_color(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Выбор цвета для новой темы."""
+    category_id = int(callback.data.split(":")[1])
+
+    text = (
+        "🎨 <b>Выбор цвета иконки</b>\n\n"
+        "Выберите цвет для иконки темы в форуме:"
+    )
+
+    keyboard = get_thread_color_keyboard(category_id)
+
+    await edit_message_with_navigation(
+        callback=callback,
+        state=state,
+        text=text,
+        markup=keyboard,
+    )
+
+
+@router.callback_query(F.data.startswith("cat_thread_color:"), IsSuperAdmin())
+async def create_thread_with_color(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Создать новую тему в форуме с выбранным цветом."""
+    parts = callback.data.split(":")
+    category_id = int(parts[1])
+    color = parts[2]
+
+    # Проверяем настройку channel_id
+    if not settings.channel_id:
+        await callback.answer(
+            "❌ Канал не настроен. Добавьте CHANNEL_ID в .env файл",
+            show_alert=True,
+        )
+        return
+
+    # Получаем категорию
+    category_repo = CategoryRepository(session)
+    category = await category_repo.get(category_id)
+
+    if not category:
+        await callback.answer("❌ Категория не найдена", show_alert=True)
+        return
+
+    await callback.answer("⏳ Создаю тему в форуме...")
+
+    # Создаем тему
+    thread_id = await ForumService.create_forum_topic(
+        bot=callback.bot,
+        chat_id=settings.channel_id,
+        name=category.name,
+        icon_color=color,
+    )
+
+    if thread_id:
+        # Сохраняем thread_id в категорию
+        await category_repo.update(category_id, thread_id=thread_id)
+        await session.commit()
+
+        text = (
+            f"✅ <b>Тема создана!</b>\n\n"
+            f"📁 Категория: {category.name}\n"
+            f"🔗 Thread ID: <code>{thread_id}</code>\n"
+            f"🎨 Цвет: {color}\n\n"
+            f"Тема создана в форуме и привязана к категории."
+        )
+
+        keyboard = get_category_actions_keyboard(category_id)
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+        logger.info(
+            "Forum topic created and linked to category",
+            category_id=category_id,
+            thread_id=thread_id,
+            color=color,
+        )
+    else:
+        await callback.message.edit_text(
+            "❌ <b>Ошибка создания темы</b>\n\n"
+            "Проверьте:\n"
+            "• Бот добавлен в канал как администратор\n"
+            "• В канале включены темы (Topics)\n"
+            "• CHANNEL_ID указан правильно",
+            parse_mode="HTML",
+        )
+
+
+@router.callback_query(F.data.startswith("cat_thread_manual:"), IsSuperAdmin())
+async def set_thread_manual_start(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Начать ручной ввод thread_id."""
     category_id = int(callback.data.split(":")[1])
 
     await callback.answer()
     await state.update_data(category_id=category_id)
 
     text = (
-        "🔗 <b>Привязка thread_id</b>\n\n"
-        "Введите thread_id ветки из канала\n\n"
+        "🔢 <b>Ручной ввод thread_id</b>\n\n"
+        "Введите thread_id темы из форума\n\n"
+        "Как узнать thread_id:\n"
+        "1. Откройте тему в Telegram\n"
+        "2. Используйте @userinfobot\n"
+        "3. Или скопируйте из URL темы\n\n"
         "Отправьте /cancel для отмены"
     )
 
     await callback.message.edit_text(text, parse_mode="HTML")
-    await state.set_state(CategoryStates.SET_THREAD)
+    await state.set_state(CategoryStates.SET_THREAD_MANUAL)
 
 
-@router.message(IsSuperAdmin(), CategoryStates.SET_THREAD, F.text)
-async def set_thread_id(
+@router.message(IsSuperAdmin(), CategoryStates.SET_THREAD_MANUAL, F.text)
+async def set_thread_id_manual(
     message: Message,
     state: FSMContext,
     session: AsyncSession,
 ) -> None:
-    """Установить thread_id."""
+    """Установить thread_id вручную."""
     try:
         thread_id = int(message.text.strip())
     except ValueError:
@@ -177,10 +313,14 @@ async def set_thread_id(
 
     if category:
         await session.commit()
-        text = f"✅ Thread ID привязан: {thread_id}"
+        text = (
+            f"✅ <b>Thread ID привязан</b>\n\n"
+            f"📁 Категория: {category.name}\n"
+            f"🔗 Thread ID: <code>{thread_id}</code>"
+        )
 
         keyboard = get_category_actions_keyboard(category.id)
-        await message.answer(text, reply_markup=keyboard)
+        await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     else:
         await message.answer("❌ Ошибка обновления")
 
@@ -243,6 +383,7 @@ async def rename_category_name(
 async def delete_category(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Удалить категорию."""
     category_id = int(callback.data.split(":")[1])
@@ -262,6 +403,6 @@ async def delete_category(
     if success:
         await session.commit()
         await callback.answer("✅ Категория удалена", show_alert=True)
-        await categories_list(callback, session)
+        await categories_list(callback, session, state)
     else:
         await callback.answer("❌ Ошибка удаления", show_alert=True)
