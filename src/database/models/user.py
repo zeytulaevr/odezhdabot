@@ -1,8 +1,9 @@
 """Модель пользователя."""
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Index, String
+from sqlalchemy import BigInteger, DateTime, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.constants import UserRole
@@ -62,6 +63,14 @@ class User(Base, TimestampMixin):
     # Статус блокировки
     is_banned: Mapped[bool] = mapped_column(
         nullable=False, default=False, comment="Заблокирован ли пользователь"
+    )
+
+    # Последняя активность
+    last_active_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        server_default=func.now(),
+        comment="Дата последней активности пользователя",
     )
 
     # Relationships

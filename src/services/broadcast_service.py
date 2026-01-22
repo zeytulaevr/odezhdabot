@@ -92,7 +92,8 @@ class BroadcastService:
         Returns:
             Список пользователей
         """
-        query = select(User).where(User.is_active == True)
+        # Фильтруем только не заблокированных пользователей
+        query = select(User).where(User.is_banned == False)
 
         # Фильтр: все пользователи (no additional filters)
         if filters.get("all"):
