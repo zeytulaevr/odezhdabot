@@ -1,6 +1,6 @@
 """Репозиторий для работы с пользователями."""
 
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.constants import UserRole
@@ -143,3 +143,62 @@ class UserRepository(BaseRepository[User]):
             Обновлённый пользователь или None
         """
         return await self.update(user_id, is_banned=False)
+
+    async def get_all_users(
+        self, skip: int = 0, limit: int = 10, order_by: str = "created_at"
+    ) -> list[User]:
+        """Получить всех пользователей с пагинацией.
+
+        Args:
+            skip: Количество пропускаемых записей
+            limit: Максимальное количество записей
+            order_by: Поле для сортировки
+
+        Returns:
+            Список пользователей
+        """
+        stmt = select(User).order_by(getattr(User, order_by).desc()).offset(skip).limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_users(self) -> int:
+        """Подсчитать количество пользователей.
+
+        Returns:
+            Количество пользователей
+        """
+        stmt = select(func.count(User.id))
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
+
+    async def search_users(self, query: str, limit: int = 20) -> list[User]:
+        """Поиск пользователей по имени, username или telegram_id.
+
+        Args:
+            query: Поисковый запрос
+            limit: Максимальное количество результатов
+
+        Returns:
+            Список пользователей
+        """
+        # Проверяем, является ли запрос числом (для поиска по telegram_id)
+        if query.isdigit():
+            telegram_id = int(query)
+            stmt = select(User).where(
+                or_(
+                    User.telegram_id == telegram_id,
+                    User.full_name.ilike(f"%{query}%"),
+                    User.username.ilike(f"%{query}%"),
+                )
+            ).limit(limit)
+        else:
+            # Поиск по имени и username
+            stmt = select(User).where(
+                or_(
+                    User.full_name.ilike(f"%{query}%"),
+                    User.username.ilike(f"%{query}%"),
+                )
+            ).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

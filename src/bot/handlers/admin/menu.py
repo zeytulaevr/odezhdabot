@@ -210,17 +210,11 @@ async def process_admin_callback(
             )
         return
 
-    # Пользователи
+    # Пользователи - перенаправляем на меню управления пользователями
     elif action == "users":
-        text = "👤 <b>Пользователи</b>\n\nФункционал в разработке..."
-        keyboard = get_back_to_admin_keyboard()
-        if callback.message:
-            await edit_message_with_navigation(
-                callback=callback,
-                state=state,
-                text=text,
-                markup=keyboard.as_markup(),
-            )
+        from src.bot.handlers.admin.users import show_users_menu
+        callback.data = "users:menu"
+        await show_users_menu(callback, state)
         return
 
     # Помощь
