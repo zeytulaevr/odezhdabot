@@ -5,6 +5,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.orders import (
@@ -38,15 +39,9 @@ async def start_order(
     session: AsyncSession,
     state: FSMContext,
 ) -> None:
-    """Начать оформление заказа - выбор размера.
-
-    Args:
-        callback: CallbackQuery
-        session: Сессия БД
-        state: FSM контекст
-    """
+    """Начать оформление заказа - выбор размера."""
+    
     product_id = int(callback.data.split(":")[1])
-
     product_service = ProductService(session)
     product = await product_service.get_product(product_id)
 
@@ -77,20 +72,28 @@ async def start_order(
         sizes=product.sizes_list,
     )
 
-    if callback.message.photo:
-        # Если текущее сообщение с фото, удаляем и отправляем новое
-        await callback.message.delete()
-        await callback.message.answer(
-            text=text,
-            reply_markup=keyboard,
-            parse_mode="HTML",
-        )
-    else:
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=keyboard,
-            parse_mode="HTML",
-        )
+    async def safe_edit_or_send():
+        """Пытаемся редактировать сообщение, если не получится — отправляем новое"""
+        try:
+            # Если сообщение с фото, удаляем и отправляем новое
+            if callback.message.photo:
+                await callback.message.delete()
+                raise TelegramBadRequest("Удаляем сообщение с фото — отправляем новое")
+            
+            await callback.message.edit_text(
+                text=text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+        except TelegramBadRequest:
+            # fallback: новое сообщение
+            await callback.message.answer(
+                text=text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+
+    await safe_edit_or_send()
 
     await state.set_state(OrderStates.SELECT_SIZE)
     await callback.answer()
