@@ -71,6 +71,8 @@ async def show_orders_menu(message: Message, user: User) -> None:
     """
     logger.info("Orders menu opened", user_id=user.id)
 
+    from src.bot.keyboards.orders import get_admin_orders_filters_keyboard
+
     text = (
         "📋 <b>Управление заказами</b>\n\n"
         "Выберите статус заказов для просмотра:"
@@ -78,39 +80,58 @@ async def show_orders_menu(message: Message, user: User) -> None:
 
     await message.answer(
         text=text,
-        reply_markup=get_admin_panel_keyboard(),
+        reply_markup=get_admin_orders_filters_keyboard(),
         parse_mode="HTML",
     )
 
 
 @router.message(F.text == "📊 Статистика", IsAdmin())
-async def show_statistics(message: Message, user: User) -> None:
+async def show_statistics(message: Message, user: User, session: AsyncSession) -> None:
     """Показать статистику.
 
     Args:
         message: Входящее сообщение
         user: Пользователь из БД
+        session: Сессия БД
     """
     logger.info("Statistics opened", user_id=user.id)
 
-    # TODO: Реализовать подсчёт статистики
+    from src.database.repositories.order import OrderRepository
+    from src.database.repositories.user import UserRepository
+
+    # Получаем статистику
+    order_repo = OrderRepository(session)
+    user_repo = UserRepository(session)
+
+    # Статистика заказов
+    all_orders = await order_repo.get_all_orders(limit=10000)
+    new_orders = [o for o in all_orders if o.status == "new"]
+    processing_orders = [o for o in all_orders if o.status in ["processing", "paid", "shipped"]]
+    completed_orders = [o for o in all_orders if o.status == "completed"]
+
+    # Статистика пользователей
+    total_users = await user_repo.count_users()
+    all_users = await user_repo.get_all_users(limit=10000)
+    active_users = [u for u in all_users if not u.is_banned]
+    banned_users = [u for u in all_users if u.is_banned]
+
     text = (
         "📊 <b>Статистика</b>\n\n"
-        "📦 Всего заказов: <code>0</code>\n"
-        "🆕 Новых: <code>0</code>\n"
-        "🔄 В обработке: <code>0</code>\n"
-        "✅ Завершённых: <code>0</code>\n\n"
-        "👥 Всего пользователей: <code>0</code>\n"
-        "🟢 Активных: <code>0</code>\n"
-        "🔴 Забаненных: <code>0</code>"
+        f"📦 Всего заказов: <code>{len(all_orders)}</code>\n"
+        f"🆕 Новых: <code>{len(new_orders)}</code>\n"
+        f"🔄 В обработке: <code>{len(processing_orders)}</code>\n"
+        f"✅ Завершённых: <code>{len(completed_orders)}</code>\n\n"
+        f"👥 Всего пользователей: <code>{total_users}</code>\n"
+        f"🟢 Активных: <code>{len(active_users)}</code>\n"
+        f"🔴 Забаненных: <code>{len(banned_users)}</code>"
     )
 
     await message.answer(text=text, parse_mode="HTML")
 
 
 @router.message(F.text == "👤 Пользователи", IsAdmin())
-async def show_users_menu(message: Message, user: User) -> None:
-    """Показать меню пользователей.
+async def show_users_menu_reply(message: Message, user: User) -> None:
+    """Показать меню пользователей из reply клавиатуры.
 
     Args:
         message: Входящее сообщение
@@ -118,15 +139,18 @@ async def show_users_menu(message: Message, user: User) -> None:
     """
     logger.info("Users menu opened", user_id=user.id)
 
+    from src.bot.keyboards.users import get_users_menu_keyboard
+
     text = (
         "👤 <b>Управление пользователями</b>\n\n"
-        "Здесь вы можете:\n"
-        "• Просмотреть список пользователей\n"
-        "• Заблокировать/разблокировать пользователя\n"
-        "• Посмотреть информацию о пользователе"
+        "Выберите действие:"
     )
 
-    await message.answer(text=text, parse_mode="HTML")
+    await message.answer(
+        text=text,
+        reply_markup=get_users_menu_keyboard(),
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data.startswith("admin:"), IsAdmin())
@@ -165,26 +189,12 @@ async def process_admin_callback(
             )
         return
 
-    # Заказы
+    # Заказы - перенаправляем на обработчик заказов
     if action == "orders":
-        keyboard = get_back_to_admin_keyboard()
-        if subaction in ["new", "processing", "completed"]:
-            status_names = {
-                "new": "новые",
-                "processing": "в обработке",
-                "completed": "завершённые",
-            }
-            text = f"📋 <b>Заказы ({status_names[subaction]})</b>\n\nФункционал в разработке..."
-        else:
-            text = "📋 <b>Заказы</b>\n\nФункционал в разработке..."
-
-        if callback.message:
-            await edit_message_with_navigation(
-                callback=callback,
-                state=state,
-                text=text,
-                markup=keyboard.as_markup(),
-            )
+        from src.bot.handlers.admin.orders import filter_admin_orders
+        # По умолчанию показываем все заказы
+        callback.data = "admin_orders_filter:all"
+        await filter_admin_orders(callback, session, state)
         return
 
     # Статистика модерации
