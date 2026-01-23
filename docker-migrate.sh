@@ -1,12 +1,11 @@
 #!/bin/bash
 
-# Скрипт для управления миграциями базы данных через Alembic
+# Скрипт для управления миграциями базы данных через Docker
 # Использование:
-#   ./migrate.sh upgrade    - применить все миграции
-#   ./migrate.sh downgrade  - откатить последнюю миграцию
-#   ./migrate.sh current    - показать текущую версию БД
-#   ./migrate.sh history    - показать историю миграций
-#   ./migrate.sh create "description" - создать новую миграцию
+#   ./docker-migrate.sh upgrade    - применить все миграции
+#   ./docker-migrate.sh downgrade  - откатить последнюю миграцию
+#   ./docker-migrate.sh current    - показать текущую версию БД
+#   ./docker-migrate.sh history    - показать историю миграций
 
 set -e
 
@@ -34,51 +33,58 @@ error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
-# Загрузка переменных окружения (если есть .env файл)
-if [ -f .env ]; then
-    info "Загрузка переменных из .env файла..."
-    set -a
-    source <(cat .env | grep -v '^#' | grep -v '^$' | sed 's/#.*//' | sed 's/\r$//')
-    set +a
-else
-    warning ".env файл не найден, используются переменные окружения"
-fi
+# Проверка, запущен ли Docker Compose
+check_docker() {
+    if ! docker compose ps | grep -q "bot.*Up"; then
+        warning "Контейнер бота не запущен"
+        info "Запускаем контейнеры..."
+        docker compose up -d
+        sleep 3
+    fi
+}
 
 # Проверка команды
 COMMAND=${1:-help}
 
 case $COMMAND in
     upgrade)
-        info "Применяем миграции базы данных..."
+        info "Применяем миграции базы данных через Docker..."
         echo ""
+
+        check_docker
 
         # Показываем текущую версию
         info "Текущая версия БД:"
-        python -m alembic current || warning "Не удалось получить текущую версию"
+        docker compose exec bot python -m alembic current || warning "Не удалось получить текущую версию"
         echo ""
 
         # Применяем миграции
         info "Применяем все новые миграции..."
-        python -m alembic upgrade head
+        docker compose exec bot python -m alembic upgrade head
 
         echo ""
         success "Миграции успешно применены!"
 
         # Показываем новую версию
         info "Новая версия БД:"
-        python -m alembic current
+        docker compose exec bot python -m alembic current
         echo ""
 
-        warning "Не забудьте перезапустить бота: docker compose restart bot"
+        warning "Перезапускаем бота для применения изменений..."
+        docker compose restart bot
+        sleep 2
+        success "Бот перезапущен!"
         ;;
 
     downgrade)
-        warning "Откат миграции..."
+        warning "Откат миграции через Docker..."
         echo ""
+
+        check_docker
 
         # Показываем текущую версию
         info "Текущая версия БД:"
-        python -m alembic current
+        docker compose exec bot python -m alembic current
         echo ""
 
         # Подтверждение
@@ -90,59 +96,67 @@ case $COMMAND in
 
         # Откатываем одну миграцию
         info "Откатываем последнюю миграцию..."
-        python -m alembic downgrade -1
+        docker compose exec bot python -m alembic downgrade -1
 
         echo ""
         success "Миграция откачена!"
 
         # Показываем новую версию
         info "Текущая версия БД:"
-        python -m alembic current
+        docker compose exec bot python -m alembic current
         echo ""
 
-        warning "Не забудьте перезапустить бота: docker compose restart bot"
+        warning "Перезапускаем бота..."
+        docker compose restart bot
+        sleep 2
+        success "Бот перезапущен!"
         ;;
 
     current)
+        check_docker
         info "Текущая версия базы данных:"
-        python -m alembic current
+        docker compose exec bot python -m alembic current
         ;;
 
     history)
+        check_docker
         info "История миграций:"
-        python -m alembic history --verbose
+        docker compose exec bot python -m alembic history --verbose
+        ;;
+
+    status)
+        check_docker
+        info "Статус миграций:"
+        echo ""
+
+        info "Текущая версия:"
+        docker compose exec bot python -m alembic current
+
+        echo ""
+        info "Последние миграции:"
+        docker compose exec bot python -m alembic history -n 5
         ;;
 
     create)
         if [ -z "$2" ]; then
             error "Укажите описание миграции!"
-            echo "Использование: ./migrate.sh create \"описание миграции\""
+            echo "Использование: ./docker-migrate.sh create \"описание миграции\""
             exit 1
         fi
 
+        check_docker
+
         info "Создаем новую миграцию: $2"
-        python -m alembic revision --autogenerate -m "$2"
+        docker compose exec bot python -m alembic revision --autogenerate -m "$2"
 
         success "Миграция создана!"
         warning "Проверьте созданный файл в migrations/versions/ перед применением!"
         ;;
 
-    status)
-        info "Статус миграций:"
-        echo ""
-
-        info "Текущая версия:"
-        python -m alembic current
-
-        echo ""
-        info "Последние миграции:"
-        python -m alembic history -n 5
-        ;;
-
     help|*)
-        echo "Управление миграциями базы данных"
+        echo "Управление миграциями базы данных через Docker"
         echo ""
-        echo "Использование: ./migrate.sh КОМАНДА"
+        echo "Использование: ./docker-migrate.sh КОМАНДА"
         echo ""
         echo "Доступные команды:"
         echo "  upgrade     - Применить все новые миграции"
@@ -154,8 +168,11 @@ case $COMMAND in
         echo "  help        - Показать эту справку"
         echo ""
         echo "Примеры:"
-        echo "  ./migrate.sh upgrade"
-        echo "  ./migrate.sh current"
-        echo "  ./migrate.sh create \"add user avatar field\""
+        echo "  ./docker-migrate.sh upgrade"
+        echo "  ./docker-migrate.sh current"
+        echo "  ./docker-migrate.sh create \"add user avatar field\""
+        echo ""
+        info "Этот скрипт работает с контейнерами Docker"
+        info "Для локальной работы используйте ./migrate.sh"
         ;;
 esac
