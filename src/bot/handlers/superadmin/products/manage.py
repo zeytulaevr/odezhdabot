@@ -39,6 +39,7 @@ async def noop_handler(callback: CallbackQuery) -> None:
 async def products_menu(
     event: Message | CallbackQuery,
     user: User,
+    state: FSMContext,
 ) -> None:
     """Главное меню управления товарами."""
     text = (
@@ -49,8 +50,15 @@ async def products_menu(
     keyboard = get_products_menu_keyboard()
 
     if isinstance(event, CallbackQuery):
-        await event.answer()
-        await event.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        # Используем навигацию только если это не возврат назад
+        # При возврате назад save_to_history=False чтобы не дублировать
+        await edit_message_with_navigation(
+            callback=event,
+            state=state,
+            text=text,
+            markup=keyboard,
+            save_to_history=False,
+        )
     else:
         await event.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -259,6 +267,7 @@ async def delete_product_confirm(
 async def delete_product(
     callback: CallbackQuery,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Удалить товар."""
     product_id = int(callback.data.split(":")[1])
@@ -268,6 +277,6 @@ async def delete_product(
 
     if success:
         await callback.answer("✅ Товар удалён", show_alert=True)
-        await products_list(callback, session)
+        await products_list(callback, session, state)
     else:
         await callback.answer("❌ Ошибка удаления", show_alert=True)

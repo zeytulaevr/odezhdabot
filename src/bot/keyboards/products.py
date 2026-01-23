@@ -27,7 +27,11 @@ def get_categories_keyboard(categories: list[Category]) -> InlineKeyboardMarkup:
         )
 
     builder.row(
-        InlineKeyboardButton(text="◀️ Назад", callback_data="products_menu")
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back")
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="superadmin:menu")
     )
 
     return builder.as_markup()
@@ -78,7 +82,11 @@ def get_product_actions_keyboard(product_id: int, is_active: bool = True) -> Inl
     )
 
     builder.row(
-        InlineKeyboardButton(text="◀️ Назад к списку", callback_data="products_list")
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back")
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="superadmin:menu")
     )
 
     return builder.as_markup()
@@ -128,7 +136,11 @@ def get_products_list_keyboard(
         builder.row(*nav_buttons)
 
     builder.row(
-        InlineKeyboardButton(text="◀️ Назад", callback_data="products_menu")
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back")
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="superadmin:menu")
     )
 
     return builder.as_markup()
@@ -168,6 +180,14 @@ def get_products_menu_keyboard() -> InlineKeyboardMarkup:
             text="📁 Управление категориями",
             callback_data="categories_manage",
         )
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back"),
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="superadmin:menu"),
     )
 
     return builder.as_markup()
@@ -250,7 +270,11 @@ def get_categories_manage_keyboard(
     )
 
     builder.row(
-        InlineKeyboardButton(text="◀️ Назад", callback_data="products_menu")
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back")
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="superadmin:menu")
     )
 
     return builder.as_markup()
@@ -289,7 +313,11 @@ def get_category_actions_keyboard(category_id: int) -> InlineKeyboardMarkup:
     )
 
     builder.row(
-        InlineKeyboardButton(text="◀️ Назад", callback_data="categories_manage")
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back")
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="superadmin:menu")
     )
 
     return builder.as_markup()

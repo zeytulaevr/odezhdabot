@@ -2,30 +2,50 @@
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.filters.role import IsAdmin
 from src.bot.keyboards.main_menu import get_admin_menu, get_admin_panel_keyboard
+from src.core.constants import CallbackPrefix
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.moderated_message import ModeratedMessageRepository
+from src.utils.navigation import NavigationStack, edit_message_with_navigation
 
 logger = get_logger(__name__)
 
 router = Router(name="admin_menu")
 
 
+def get_back_to_admin_keyboard() -> InlineKeyboardBuilder:
+    """Создать клавиатуру с кнопкой 'Назад в админ-панель'."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data=CallbackPrefix.BACK),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="admin:menu"),
+    )
+    return builder
+
+
 @router.message(Command("admin"), IsAdmin())
 @router.message(F.text == "📋 Админ-панель", IsAdmin())
-async def cmd_admin(message: Message, user: User) -> None:
+async def cmd_admin(message: Message, user: User, state: FSMContext) -> None:
     """Команда /admin или кнопка "Админ-панель" - открыть админ-панель.
 
     Args:
         message: Входящее сообщение
         user: Пользователь из БД
+        state: FSM контекст
     """
     logger.info("Admin panel opened", user_id=user.id, role=user.role)
+
+    # Очищаем историю навигации при входе в админ-панель
+    await NavigationStack.clear(state)
 
     text = (
         f"👨‍💼 <b>Админ-панель</b>\n\n"
@@ -114,6 +134,7 @@ async def process_admin_callback(
     callback: CallbackQuery,
     user: User,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Обработка callback от админ-панели.
 
@@ -121,34 +142,53 @@ async def process_admin_callback(
         callback: Callback query
         user: Пользователь из БД
         session: Сессия БД
+        state: FSM контекст
     """
     parts = callback.data.split(":")
     action = parts[1] if len(parts) > 1 else None
     subaction = parts[2] if len(parts) > 2 else None
 
+    # Возврат в главное меню админки
+    if action == "menu":
+        await callback.answer()
+        text = (
+            f"👨‍💼 <b>Админ-панель</b>\n\n"
+            f"Добро пожаловать, <b>{user.full_name}</b>!\n"
+            f"Роль: <code>{user.role}</code>\n\n"
+            f"Выберите действие:"
+        )
+        if callback.message:
+            await callback.message.edit_text(
+                text=text,
+                reply_markup=get_admin_panel_keyboard(),
+                parse_mode="HTML",
+            )
+        return
+
     # Заказы
     if action == "orders":
+        keyboard = get_back_to_admin_keyboard()
         if subaction in ["new", "processing", "completed"]:
             status_names = {
                 "new": "новые",
                 "processing": "в обработке",
                 "completed": "завершённые",
             }
-            await callback.answer()
             text = f"📋 <b>Заказы ({status_names[subaction]})</b>\n\nФункционал в разработке..."
-            if callback.message:
-                await callback.message.edit_text(text=text, parse_mode="HTML")
         else:
-            await callback.answer()
             text = "📋 <b>Заказы</b>\n\nФункционал в разработке..."
-            if callback.message:
-                await callback.message.edit_text(text=text, parse_mode="HTML")
+
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
         return
 
     # Статистика модерации
     elif action == "stats":
-        await callback.answer()
-
         mod_repo = ModeratedMessageRepository(session)
         stats = await mod_repo.get_spam_statistics(days=7)
 
@@ -160,21 +200,31 @@ async def process_admin_callback(
             f"⏳ На проверке: <b>{stats['pending']}</b>\n\n"
             f"💡 Используйте /modqueue для просмотра очереди"
         )
+        keyboard = get_back_to_admin_keyboard()
         if callback.message:
-            await callback.message.edit_text(text=text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
         return
 
     # Пользователи
     elif action == "users":
-        await callback.answer()
         text = "👤 <b>Пользователи</b>\n\nФункционал в разработке..."
+        keyboard = get_back_to_admin_keyboard()
         if callback.message:
-            await callback.message.edit_text(text=text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
         return
 
     # Помощь
     elif action == "help":
-        await callback.answer()
         text = (
             "ℹ️ <b>Помощь</b>\n\n"
             "<b>Доступные команды:</b>\n"
@@ -185,12 +235,24 @@ async def process_admin_callback(
             "• Одобряйте или отклоняйте отзывы\n"
             "• Банте спамеров при необходимости"
         )
+        keyboard = get_back_to_admin_keyboard()
         if callback.message:
-            await callback.message.edit_text(text=text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
         return
 
     else:
         await callback.answer()
         text = "⚠️ Неизвестное действие"
+        keyboard = get_back_to_admin_keyboard()
         if callback.message:
-            await callback.message.edit_text(text=text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )

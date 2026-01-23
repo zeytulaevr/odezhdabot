@@ -3,12 +3,14 @@
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.filters.role import IsSuperAdmin
 from src.bot.keyboards.main_menu import get_superadmin_menu, get_superadmin_panel_keyboard
 from src.bot.keyboards.products import get_products_menu_keyboard, get_categories_manage_keyboard
+from src.core.constants import CallbackPrefix
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.category import CategoryRepository
@@ -17,6 +19,18 @@ from src.utils.navigation import edit_message_with_navigation, NavigationStack
 logger = get_logger(__name__)
 
 router = Router(name="superadmin_menu")
+
+
+def get_back_to_superadmin_keyboard() -> InlineKeyboardBuilder:
+    """Создать клавиатуру с кнопкой 'Назад в супер-админ панель'."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data=CallbackPrefix.BACK),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="superadmin:menu"),
+    )
+    return builder
 
 
 @router.message(Command("superadmin"), IsSuperAdmin())
@@ -160,6 +174,24 @@ async def process_superadmin_callback(
     action = parts[1] if len(parts) > 1 else None
     subaction = parts[2] if len(parts) > 2 else None
 
+    # Возврат в главное меню супер-админа
+    if action == "menu":
+        await callback.answer()
+        text = (
+            f"👨‍💼 <b>Супер-админ панель</b>\n\n"
+            f"Добро пожаловать, <b>{user.full_name}</b>!\n"
+            f"Роль: <code>{user.role}</code>\n\n"
+            f"У вас полный доступ ко всем функциям бота.\n\n"
+            f"Выберите действие:"
+        )
+        if callback.message:
+            await callback.message.edit_text(
+                text=text,
+                reply_markup=get_superadmin_panel_keyboard(),
+                parse_mode="HTML",
+            )
+        return
+
     # Товары
     if action == "products":
         if subaction == "add":
@@ -208,15 +240,20 @@ async def process_superadmin_callback(
 
     # Модерация
     elif action == "reviews" or action == "moderation":
-        await callback.answer()
         text = (
             "🔧 <b>Модерация</b>\n\n"
             "Доступные команды:\n"
             "• /modqueue - очередь модерации\n"
             "• /spam - управление спам-паттернами"
         )
+        keyboard = get_back_to_superadmin_keyboard()
         if callback.message:
-            await callback.message.edit_text(text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
         return
 
     # Управление админами
@@ -229,6 +266,15 @@ async def process_superadmin_callback(
     # Остальные действия
     elif action == "orders":
         text = "📋 <b>Заказы</b>\n\nФункционал в разработке..."
+        keyboard = get_back_to_superadmin_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
+        return
     elif action == "broadcast":
         # Перенаправление на меню рассылок
         from src.bot.handlers.superadmin.broadcast.history import show_broadcast_menu as broadcast_main
@@ -236,8 +282,26 @@ async def process_superadmin_callback(
         return
     elif action == "users":
         text = "👤 <b>Пользователи</b>\n\nФункционал в разработке..."
+        keyboard = get_back_to_superadmin_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
+        return
     elif action == "settings":
         text = "⚙️ <b>Настройки</b>\n\nФункционал в разработке..."
+        keyboard = get_back_to_superadmin_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
+        return
     elif action == "stats":
         # Перенаправление на статистику
         from src.bot.handlers.superadmin.stats import cmd_stats
@@ -264,9 +328,23 @@ async def process_superadmin_callback(
             "• Ручная модерация отзывов\n"
             "• Настройка спам-фильтров"
         )
+        keyboard = get_back_to_superadmin_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
+        return
     else:
         text = "⚠️ Неизвестное действие"
-
-    await callback.answer()
-    if callback.message:
-        await callback.message.edit_text(text=text, parse_mode="HTML")
+        keyboard = get_back_to_superadmin_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
+        return
