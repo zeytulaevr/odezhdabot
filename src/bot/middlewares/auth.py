@@ -56,9 +56,9 @@ class AuthMiddleware(BaseMiddleware):
                 username=telegram_user.username,
             )
 
-            # Автоматическое назначение роли super_admin для пользователей из ADMIN_IDS
+            # Автоматическое назначение роли super_admin для пользователей из SUPERADMIN_IDS
             from src.core.config import settings
-            if telegram_user.id in settings.admin_ids and user.role != UserRole.SUPER_ADMIN.value:
+            if telegram_user.id in settings.superadmin_ids and user.role != UserRole.SUPER_ADMIN.value:
                 user.role = UserRole.SUPER_ADMIN.value
                 await user_repo.session.commit()
                 await user_repo.session.refresh(user)
