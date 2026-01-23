@@ -42,8 +42,8 @@ async def on_startup(bot: Bot) -> None:
         bot_name=bot_info.full_name,
     )
 
-    # Уведомление администраторов о запуске
-    for admin_id in settings.admin_ids:
+    # Уведомление супер-администраторов о запуске
+    for admin_id in settings.superadmin_ids:
         try:
             await bot.send_message(
                 chat_id=admin_id,
@@ -52,7 +52,7 @@ async def on_startup(bot: Bot) -> None:
                 parse_mode=ParseMode.HTML,
             )
         except Exception as e:
-            logger.warning(f"Failed to notify admin {admin_id}: {e}")
+            logger.warning(f"Failed to notify superadmin {admin_id}: {e}")
 
 
 async def on_shutdown(bot: Bot) -> None:
@@ -63,15 +63,15 @@ async def on_shutdown(bot: Bot) -> None:
     """
     logger.info("Shutting down bot...")
 
-    # Уведомление администраторов об остановке
-    for admin_id in settings.admin_ids:
+    # Уведомление супер-администраторов об остановке
+    for admin_id in settings.superadmin_ids:
         try:
             await bot.send_message(
                 chat_id=admin_id,
                 text="🛑 Бот остановлен",
             )
         except Exception as e:
-            logger.warning(f"Failed to notify admin {admin_id}: {e}")
+            logger.warning(f"Failed to notify superadmin {admin_id}: {e}")
 
     # Закрытие соединений с БД
     await close_db()

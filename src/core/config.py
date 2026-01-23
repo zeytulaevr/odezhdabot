@@ -84,19 +84,7 @@ class Settings(BaseSettings):
     # ===============================
     # ADMIN SETTINGS
     # ===============================
-    admin_ids: list[int] = Field(default_factory=list, description="ID администраторов")
     superadmin_ids: list[int] = Field(default_factory=list, description="ID супер-администраторов")
-
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def parse_admin_ids(cls, v) -> list[int]:
-        if not v:
-            return []
-        if isinstance(v, str):
-            return [int(i.strip()) for i in v.split(",") if i.strip()]
-        if isinstance(v, list):
-            return v
-        return [int(v)]
 
     @field_validator("superadmin_ids", mode="before")
     @classmethod

@@ -7,12 +7,45 @@ from src.database.models.order import Order
 from src.database.models.product import Product
 
 
-def get_size_selection_keyboard(product_id: int, sizes: list[str]) -> InlineKeyboardMarkup:
+def get_color_selection_keyboard(product_id: int, colors: list[str]) -> InlineKeyboardMarkup:
+    """Клавиатура выбора цвета товара.
+
+    Args:
+        product_id: ID товара
+        colors: Список доступных цветов
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    # Цвета по 2 в ряд
+    for i in range(0, len(colors), 2):
+        row_buttons = []
+        for color in colors[i:i+2]:
+            row_buttons.append(
+                InlineKeyboardButton(
+                    text=color,
+                    callback_data=f"order_color:{product_id}:{color}",
+                )
+            )
+        builder.row(*row_buttons)
+
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back")
+    )
+
+    return builder.as_markup()
+
+
+def get_size_selection_keyboard(product_id: int, sizes: list[str], fit: str | None = None, color: str | None = None) -> InlineKeyboardMarkup:
     """Клавиатура выбора размера товара.
 
     Args:
         product_id: ID товара
         sizes: Список доступных размеров
+        fit: Тип кроя (опционально)
+        color: Выбранный цвет (опционально, для callback data)
 
     Returns:
         Inline клавиатура
@@ -23,10 +56,15 @@ def get_size_selection_keyboard(product_id: int, sizes: list[str]) -> InlineKeyb
     for i in range(0, len(sizes), 3):
         row_buttons = []
         for size in sizes[i:i+3]:
+            # Добавляем цвет в callback data если он был выбран
+            callback_data = f"order_size:{product_id}:{size}"
+            if color:
+                callback_data += f":{color}"
+
             row_buttons.append(
                 InlineKeyboardButton(
                     text=size.upper(),
-                    callback_data=f"order_size:{product_id}:{size}",
+                    callback_data=callback_data,
                 )
             )
         builder.row(*row_buttons)

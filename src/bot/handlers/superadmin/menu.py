@@ -20,8 +20,9 @@ router = Router(name="superadmin_menu")
 
 
 @router.message(Command("superadmin"), IsSuperAdmin())
+@router.message(F.text == "👑 Супер-админ панель", IsSuperAdmin())
 async def cmd_superadmin(message: Message, user: User, state: FSMContext) -> None:
-    """Команда /superadmin - открыть супер-админ панель.
+    """Команда /superadmin или кнопка "Супер-админ панель" - открыть супер-админ панель.
 
     Args:
         message: Входящее сообщение
@@ -218,6 +219,13 @@ async def process_superadmin_callback(
             await callback.message.edit_text(text, parse_mode="HTML")
         return
 
+    # Управление админами
+    elif action == "admins":
+        # Перенаправление на меню управления админами
+        from src.bot.handlers.superadmin.manage_admins import show_admins_list
+        await show_admins_list(callback, session)
+        return
+
     # Остальные действия
     elif action == "orders":
         text = "📋 <b>Заказы</b>\n\nФункционал в разработке..."
@@ -230,6 +238,14 @@ async def process_superadmin_callback(
         text = "👤 <b>Пользователи</b>\n\nФункционал в разработке..."
     elif action == "settings":
         text = "⚙️ <b>Настройки</b>\n\nФункционал в разработке..."
+    elif action == "stats":
+        # Перенаправление на статистику
+        from src.bot.handlers.superadmin.stats import cmd_stats
+        # Создаем фейковое сообщение для вызова команды
+        callback.message.text = "/stats"
+        await cmd_stats(callback.message, user)
+        await callback.answer()
+        return
     elif action == "help":
         text = (
             "ℹ️ <b>Помощь</b>\n\n"

@@ -15,6 +15,17 @@ class UserRepository(BaseRepository[User]):
         """Инициализация репозитория пользователей."""
         super().__init__(User, session)
 
+    async def get_by_id(self, user_id: int) -> User | None:
+        """Получить пользователя по ID.
+
+        Args:
+            user_id: ID пользователя в БД
+
+        Returns:
+            Пользователь или None
+        """
+        return await self.get(user_id)
+
     async def get_by_telegram_id(self, telegram_id: int) -> User | None:
         """Получить пользователя по Telegram ID.
 

@@ -162,9 +162,10 @@ async def notify_admins_auto_delete(
     for reason in decision.reasons[:5]:  # Показываем первые 5 причин
         text += f"• {reason}\n"
 
-    # Отправляем админам
+    # Отправляем супер-админам
+    # TODO: В будущем можно отправлять уведомления всем админам из БД
     bot = message.bot
-    for admin_id in settings.admin_ids:
+    for admin_id in settings.superadmin_ids:
         try:
             await bot.send_message(
                 chat_id=admin_id,
@@ -224,9 +225,10 @@ async def notify_admins_for_review(
     # Клавиатура с действиями
     keyboard = get_moderation_keyboard(moderated_msg.id)
 
-    # Отправляем админам
+    # Отправляем супер-админам
+    # TODO: В будущем можно отправлять уведомления всем админам из БД
     bot = message.bot
-    for admin_id in settings.admin_ids:
+    for admin_id in settings.superadmin_ids:
         try:
             await bot.send_message(
                 chat_id=admin_id,

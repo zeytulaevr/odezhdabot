@@ -17,8 +17,9 @@ router = Router(name="admin_menu")
 
 
 @router.message(Command("admin"), IsAdmin())
+@router.message(F.text == "📋 Админ-панель", IsAdmin())
 async def cmd_admin(message: Message, user: User) -> None:
-    """Команда /admin - открыть админ-панель.
+    """Команда /admin или кнопка "Админ-панель" - открыть админ-панель.
 
     Args:
         message: Входящее сообщение

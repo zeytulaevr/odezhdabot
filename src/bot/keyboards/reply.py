@@ -1,16 +1,63 @@
 """Reply клавиатуры бота."""
 
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 from src.core.constants import Buttons
 
 
-def get_main_keyboard() -> ReplyKeyboardMarkup:
-    """Получить главную клавиатуру.
+def get_admin_keyboard() -> ReplyKeyboardMarkup:
+    """Получить клавиатуру для администратора.
 
     Returns:
-        Главная клавиатура с основными разделами
+        Клавиатура с кнопкой для открытия админ-панели
+    """
+    builder = ReplyKeyboardBuilder()
+
+    # Кнопка для открытия админ-панели (замена /admin)
+    builder.row(
+        KeyboardButton(text="📋 Админ-панель"),
+    )
+
+    return builder.as_markup(
+        resize_keyboard=True,
+        input_field_placeholder="Нажмите кнопку для открытия панели",
+    )
+
+
+def get_superadmin_keyboard() -> ReplyKeyboardMarkup:
+    """Получить клавиатуру для супер-администратора.
+
+    Returns:
+        Клавиатура с кнопкой для открытия супер-админ панели
+    """
+    builder = ReplyKeyboardBuilder()
+
+    # Кнопка для открытия супер-админ панели (замена /superadmin)
+    builder.row(
+        KeyboardButton(text="👑 Супер-админ панель"),
+    )
+
+    return builder.as_markup(
+        resize_keyboard=True,
+        input_field_placeholder="Нажмите кнопку для открытия панели",
+    )
+
+
+def remove_keyboard() -> ReplyKeyboardRemove:
+    """Удалить reply клавиатуру.
+
+    Returns:
+        Объект для удаления клавиатуры
+    """
+    return ReplyKeyboardRemove()
+
+
+def get_main_keyboard() -> ReplyKeyboardMarkup:
+    """Получить главную клавиатуру (устаревшая функция).
+
+    Returns:
+        Клавиатура с основными разделами
     """
     builder = ReplyKeyboardBuilder()
 

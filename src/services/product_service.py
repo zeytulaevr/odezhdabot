@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 from aiogram import Bot
-from aiogram.types import InputMediaPhoto
+from aiogram.types import InputMediaPhoto, InputMediaVideo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -38,6 +38,9 @@ class ProductService:
         sizes: list[str],
         description: str | None = None,
         photo_file_id: str | None = None,
+        colors: list[str] | None = None,
+        fit: str | None = None,
+        media: list[dict[str, Any]] | None = None,
         is_active: bool = True,
     ) -> Product:
         """Добавить новый товар.
@@ -48,7 +51,10 @@ class ProductService:
             category_id: ID категории
             sizes: Список размеров
             description: Описание
-            photo_file_id: Telegram file_id фото
+            photo_file_id: Telegram file_id фото (deprecated, используйте media)
+            colors: Список доступных цветов
+            fit: Тип кроя
+            media: Медиа файлы (до 10 фото/видео)
             is_active: Активен ли товар
 
         Returns:
@@ -71,6 +77,8 @@ class ProductService:
             name=name,
             price=str(price),
             category_id=category_id,
+            colors_count=len(colors) if colors else 0,
+            media_count=len(media) if media else 0,
         )
 
         product = await self.product_repo.create(
@@ -80,6 +88,9 @@ class ProductService:
             sizes=sizes,
             description=description,
             photo_file_id=photo_file_id,
+            colors=colors or [],
+            fit=fit,
+            media=media or [],
             is_active=is_active,
         )
 
@@ -192,7 +203,7 @@ class ProductService:
             ID опубликованного сообщения или None
 
         Raises:
-            ValueError: Если товар не найден или нет фото
+            ValueError: Если товар не найден или нет медиа
         """
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -200,8 +211,10 @@ class ProductService:
         if not product:
             raise ValueError(f"Товар с ID {product_id} не найден")
 
-        if not product.photo_file_id:
-            raise ValueError(f"У товара {product_id} нет фото")
+        # Проверяем наличие медиа (новый способ) или фото (старый способ)
+        has_media = product.has_media or product.photo_file_id
+        if not has_media:
+            raise ValueError(f"У товара {product_id} нет медиа")
 
         # Формируем текст поста
         text = self._format_product_post(product)
@@ -229,18 +242,86 @@ class ProductService:
             product_id=product_id,
             channel_id=channel_id,
             thread_id=thread_id,
+            media_count=len(product.media_list),
         )
 
         try:
-            # Отправляем фото с текстом и кнопкой
-            message = await bot.send_photo(
-                chat_id=channel_id,
-                photo=product.photo_file_id,
-                caption=text,
-                parse_mode="HTML",
-                message_thread_id=thread_id,
-                reply_markup=keyboard,
-            )
+            # Если есть медиа в новом формате
+            if product.has_media:
+                media_list = product.media_list
+
+                # Если только одно медиа - отправляем как одиночное сообщение
+                if len(media_list) == 1:
+                    media_item = media_list[0]
+                    if media_item["type"] == "photo":
+                        message = await bot.send_photo(
+                            chat_id=channel_id,
+                            photo=media_item["file_id"],
+                            caption=text,
+                            parse_mode="HTML",
+                            message_thread_id=thread_id,
+                            reply_markup=keyboard,
+                        )
+                    else:  # video
+                        message = await bot.send_video(
+                            chat_id=channel_id,
+                            video=media_item["file_id"],
+                            caption=text,
+                            parse_mode="HTML",
+                            message_thread_id=thread_id,
+                            reply_markup=keyboard,
+                        )
+                else:
+                    # Несколько медиа - отправляем как media group
+                    media_group = []
+                    for i, media_item in enumerate(media_list):
+                        # Только первое медиа содержит текст
+                        caption = text if i == 0 else None
+                        parse_mode = "HTML" if i == 0 else None
+
+                        if media_item["type"] == "photo":
+                            media_group.append(
+                                InputMediaPhoto(
+                                    media=media_item["file_id"],
+                                    caption=caption,
+                                    parse_mode=parse_mode,
+                                )
+                            )
+                        else:  # video
+                            media_group.append(
+                                InputMediaVideo(
+                                    media=media_item["file_id"],
+                                    caption=caption,
+                                    parse_mode=parse_mode,
+                                )
+                            )
+
+                    # Отправляем media group
+                    messages = await bot.send_media_group(
+                        chat_id=channel_id,
+                        media=media_group,
+                        message_thread_id=thread_id,
+                    )
+
+                    # Отправляем кнопку отдельным сообщением
+                    button_message = await bot.send_message(
+                        chat_id=channel_id,
+                        text="👆 Для заказа нажмите кнопку:",
+                        message_thread_id=thread_id,
+                        reply_markup=keyboard,
+                    )
+
+                    message = messages[0]  # Возвращаем первое сообщение из группы
+            else:
+                # Старый способ - только photo_file_id
+                message = await bot.send_photo(
+                    chat_id=channel_id,
+                    photo=product.photo_file_id,
+                    caption=text,
+                    parse_mode="HTML",
+                    message_thread_id=thread_id,
+                    reply_markup=keyboard,
+                )
 
             logger.info(
                 "Product published to channel",
@@ -278,7 +359,17 @@ class ProductService:
 
         # Размеры
         if product.sizes_list:
-            text += f"📏 Размеры: {', '.join(product.sizes_list)}\n\n"
+            text += f"📏 Размеры: {', '.join(product.sizes_list)}"
+            # Добавляем тип кроя рядом с размерами
+            if product.fit:
+                text += f" ({product.fit})"
+            text += "\n"
+
+        # Цвета
+        if product.colors_list:
+            text += f"🎨 Цвета: {', '.join(product.colors_list)}\n"
+
+        text += "\n"
 
         # Призыв к действию
         text += "🛒 Для заказа напишите @username или нажмите кнопку ниже"

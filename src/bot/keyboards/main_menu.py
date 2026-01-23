@@ -88,9 +88,14 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
     """Inline клавиатура для админ-панели."""
     builder = InlineKeyboardBuilder()
 
+    # Первый ряд - Новые и В обработке
     builder.row(
-        InlineKeyboardButton(text="📋 Новые заказы", callback_data="admin:orders:new"),
+        InlineKeyboardButton(text="📋 Новые", callback_data="admin:orders:new"),
         InlineKeyboardButton(text="🔄 В обработке", callback_data="admin:orders:processing"),
+    )
+
+    # Второй ряд - Завершённые
+    builder.row(
         InlineKeyboardButton(text="✅ Завершённые", callback_data="admin:orders:completed"),
     )
 
@@ -98,6 +103,7 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="━━━━━━━━━━━━━━━", callback_data="separator"),
     )
 
+    # Третий ряд - Статистика и Пользователи
     builder.row(
         InlineKeyboardButton(text="📊 Статистика", callback_data="admin:stats"),
         InlineKeyboardButton(text="👤 Пользователи", callback_data="admin:users"),
@@ -113,10 +119,15 @@ def get_superadmin_panel_keyboard() -> InlineKeyboardMarkup:
     """Inline клавиатура супер-админ панели."""
     builder = InlineKeyboardBuilder()
 
+    # Первый ряд - Заказы и Товары
     builder.row(
         InlineKeyboardButton(text="📋 Заказы", callback_data="superadmin:orders"),
         InlineKeyboardButton(text="📦 Товары", callback_data="superadmin:products"),
-        InlineKeyboardButton(text="➕ Добавить товар", callback_data="superadmin:products:add"),
+    )
+
+    # Второй ряд - Добавить товар и Категории
+    builder.row(
+        InlineKeyboardButton(text="➕ Добавить товар", callback_data="prod_add_dialog"),
         InlineKeyboardButton(text="🏷 Категории", callback_data="superadmin:categories"),
     )
 
@@ -124,11 +135,19 @@ def get_superadmin_panel_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="━━━━━━━━━━━━━━━", callback_data="separator"),
     )
 
+    # Третий ряд - Админы и Модерация
     builder.row(
-        InlineKeyboardButton(text="🔧 Модерация отзывов", callback_data="superadmin:reviews"),
-        InlineKeyboardButton(text="📢 Рассылка", callback_data="superadmin:broadcast"),
+        InlineKeyboardButton(text="👥 Админы", callback_data="superadmin:admins"),
+        InlineKeyboardButton(text="🔧 Модерация", callback_data="superadmin:reviews"),
     )
 
+    # Четвёртый ряд - Рассылка и Статистика
+    builder.row(
+        InlineKeyboardButton(text="📢 Рассылка", callback_data="superadmin:broadcast"),
+        InlineKeyboardButton(text="📊 Статистика", callback_data="superadmin:stats"),
+    )
+
+    # Пятый ряд - Пользователи и Настройки
     builder.row(
         InlineKeyboardButton(text="👤 Пользователи", callback_data="superadmin:users"),
         InlineKeyboardButton(text="⚙️ Настройки", callback_data="superadmin:settings"),

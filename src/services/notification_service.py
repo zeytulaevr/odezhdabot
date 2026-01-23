@@ -44,8 +44,8 @@ class NotificationService:
         Returns:
             Количество успешных уведомлений
         """
-        if not settings.admin_ids:
-            logger.warning("No admin IDs configured for notifications")
+        if not settings.superadmin_ids:
+            logger.warning("No superadmin IDs configured for notifications")
             return 0
 
         # Формируем текст уведомления
@@ -65,7 +65,8 @@ class NotificationService:
 
         success_count = 0
 
-        for admin_id in settings.admin_ids:
+        # TODO: В будущем можно отправлять уведомления всем админам из БД
+        for admin_id in settings.superadmin_ids:
             try:
                 await bot.send_message(
                     chat_id=admin_id,
