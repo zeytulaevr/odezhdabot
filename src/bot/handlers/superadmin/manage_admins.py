@@ -12,6 +12,7 @@ from src.core.constants import UserRole
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.user import UserRepository
+from src.utils.cancel_handler import cancel_action_and_return_to_menu, get_cancel_keyboard
 
 logger = get_logger(__name__)
 
@@ -45,13 +46,23 @@ def get_admin_actions_keyboard(user_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_role_selection_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Клавиатура для выбора роли."""
+def get_role_selection_keyboard(user_id: int, is_adding_new: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура для выбора роли.
+
+    Args:
+        user_id: ID пользователя
+        is_adding_new: Если True, добавляем кнопку отмены, иначе кнопку назад
+    """
     buttons = [
         [InlineKeyboardButton(text="👤 Администратор", callback_data=f"admins:set_role:{user_id}:admin")],
         [InlineKeyboardButton(text="🛡 Модератор", callback_data=f"admins:set_role:{user_id}:moderator")],
-        [InlineKeyboardButton(text="◀️ Отмена", callback_data=f"admins:view:{user_id}")],
     ]
+
+    if is_adding_new:
+        buttons.append([InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_add_admin")])
+    else:
+        buttons.append([InlineKeyboardButton(text="◀️ Отмена", callback_data=f"admins:view:{user_id}")])
+
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -144,11 +155,14 @@ async def start_add_admin(callback: CallbackQuery, state: FSMContext) -> None:
         "Отправьте одно из:\n"
         "• Telegram ID пользователя (числовой)\n"
         "• Username пользователя (@username)\n"
-        "• Перешлите сообщение от пользователя\n\n"
-        "Отправьте /cancel для отмены"
+        "• Перешлите сообщение от пользователя"
     )
 
-    await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_cancel_keyboard("cancel_add_admin"),
+        parse_mode="HTML"
+    )
     await state.set_state(AddAdminStates.WAITING_USER_INFO)
 
 
@@ -238,7 +252,7 @@ async def process_user_info(
 
     await message.answer(
         text=text,
-        reply_markup=get_role_selection_keyboard(target_user.id),
+        reply_markup=get_role_selection_keyboard(target_user.id, is_adding_new=True),
         parse_mode="HTML",
     )
     await state.set_state(AddAdminStates.WAITING_ROLE)
@@ -449,13 +463,17 @@ async def remove_admin(
     )
 
 
-@router.message(Command("cancel"))
-async def cancel_add_admin(message: Message, state: FSMContext) -> None:
-    """Отмена добавления администратора."""
-    current_state = await state.get_state()
-    if current_state is None:
-        return
-
-    if current_state in [AddAdminStates.WAITING_USER_INFO, AddAdminStates.WAITING_ROLE]:
-        await state.clear()
-        await message.answer("❌ Добавление администратора отменено")
+@router.callback_query(F.data == "cancel_add_admin", AddAdminStates.WAITING_USER_INFO)
+@router.callback_query(F.data == "cancel_add_admin", AddAdminStates.WAITING_ROLE)
+async def cancel_add_admin_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Отмена добавления администратора через inline кнопку."""
+    await cancel_action_and_return_to_menu(
+        callback=callback,
+        state=state,
+        user=user,
+        cancel_message="❌ Добавление администратора отменено",
+    )
