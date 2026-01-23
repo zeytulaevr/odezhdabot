@@ -265,15 +265,10 @@ async def process_superadmin_callback(
 
     # Остальные действия
     elif action == "orders":
-        text = "📋 <b>Заказы</b>\n\nФункционал в разработке..."
-        keyboard = get_back_to_superadmin_keyboard()
-        if callback.message:
-            await edit_message_with_navigation(
-                callback=callback,
-                state=state,
-                text=text,
-                markup=keyboard.as_markup(),
-            )
+        # Перенаправляем на обработчик заказов
+        from src.bot.handlers.admin.orders import filter_admin_orders
+        callback.data = "admin_orders_filter:all"
+        await filter_admin_orders(callback, session, state)
         return
     elif action == "broadcast":
         # Перенаправление на меню рассылок
@@ -281,18 +276,22 @@ async def process_superadmin_callback(
         await broadcast_main(callback, state)
         return
     elif action == "users":
-        text = "👤 <b>Пользователи</b>\n\nФункционал в разработке..."
-        keyboard = get_back_to_superadmin_keyboard()
-        if callback.message:
-            await edit_message_with_navigation(
-                callback=callback,
-                state=state,
-                text=text,
-                markup=keyboard.as_markup(),
-            )
+        # Перенаправляем на меню управления пользователями
+        from src.bot.handlers.admin.users import show_users_menu
+        callback.data = "users:menu"
+        await show_users_menu(callback, state)
         return
     elif action == "settings":
-        text = "⚙️ <b>Настройки</b>\n\nФункционал в разработке..."
+        # Настройки - показываем информацию
+        text = (
+            "⚙️ <b>Настройки</b>\n\n"
+            "Здесь будут настройки бота:\n"
+            "• Управление каналом публикации\n"
+            "• Настройки модерации\n"
+            "• Настройки уведомлений\n"
+            "• Прочие параметры\n\n"
+            "💡 Для изменения настроек используйте переменные окружения в .env файле"
+        )
         keyboard = get_back_to_superadmin_keyboard()
         if callback.message:
             await edit_message_with_navigation(
