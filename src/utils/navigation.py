@@ -319,6 +319,15 @@ async def edit_message_with_navigation(
             **extra_data,
         )
 
+    # Проверяем, отличается ли новый контент от текущего
+    current_text = callback.message.text or callback.message.caption or ""
+    current_markup = callback.message.reply_markup
+
+    # Если контент идентичен, пропускаем редактирование
+    if current_text == text and current_markup == markup:
+        await callback.answer()
+        return
+
     # Затем редактируем сообщение
     await callback.message.edit_text(
         text=text,
