@@ -9,6 +9,7 @@ from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.orders import (
+    get_color_selection_keyboard,
     get_size_selection_keyboard,
     get_contact_request_keyboard,
     get_order_confirmation_keyboard,
@@ -28,6 +29,7 @@ router = Router(name="order_dialog")
 class OrderStates(StatesGroup):
     """Состояния оформления заказа."""
 
+    SELECT_COLOR = State()
     SELECT_SIZE = State()
     ENTER_CONTACT = State()
     CONFIRM = State()
@@ -58,19 +60,46 @@ async def start_order(
         product_id=product.id,
         product_name=product.name,
         product_price=product.formatted_price,
+        product_fit=product.fit,
     )
 
-    text = (
-        f"🛒 <b>Оформление заказа</b>\n\n"
-        f"📦 Товар: {product.name}\n"
-        f"💰 Цена: {product.formatted_price}\n\n"
-        f"Выберите размер:"
-    )
+    # Проверяем наличие цветов
+    if product.colors_list:
+        # Если есть цвета - сначала выбираем цвет
+        text = (
+            f"🛒 <b>Оформление заказа</b>\n\n"
+            f"📦 Товар: {product.name}\n"
+            f"💰 Цена: {product.formatted_price}\n\n"
+            f"Выберите цвет:"
+        )
 
-    keyboard = get_size_selection_keyboard(
-        product_id=product.id,
-        sizes=product.sizes_list,
-    )
+        keyboard = get_color_selection_keyboard(
+            product_id=product.id,
+            colors=product.colors_list,
+        )
+
+        await state.set_state(OrderStates.SELECT_COLOR)
+    else:
+        # Если цветов нет - сразу выбираем размер
+        text = (
+            f"🛒 <b>Оформление заказа</b>\n\n"
+            f"📦 Товар: {product.name}\n"
+            f"💰 Цена: {product.formatted_price}\n\n"
+        )
+
+        # Добавляем информацию о крое если есть
+        if product.fit:
+            text += f"👔 Крой: {product.fit}\n\n"
+
+        text += "Выберите размер:"
+
+        keyboard = get_size_selection_keyboard(
+            product_id=product.id,
+            sizes=product.sizes_list,
+            fit=product.fit,
+        )
+
+        await state.set_state(OrderStates.SELECT_SIZE)
 
     async def safe_edit_or_send():
         """Пытаемся редактировать сообщение, если не получится — отправляем новое"""
@@ -79,7 +108,7 @@ async def start_order(
             if callback.message.photo:
                 await callback.message.delete()
                 raise TelegramBadRequest("Удаляем сообщение с фото — отправляем новое")
-            
+
             await callback.message.edit_text(
                 text=text,
                 reply_markup=keyboard,
@@ -94,14 +123,83 @@ async def start_order(
             )
 
     await safe_edit_or_send()
-
-    await state.set_state(OrderStates.SELECT_SIZE)
     await callback.answer()
 
     logger.info(
         "Order started",
         user_id=callback.from_user.id,
         product_id=product.id,
+        has_colors=len(product.colors_list) > 0,
+    )
+
+
+@router.callback_query(OrderStates.SELECT_COLOR, F.data.startswith("order_color:"))
+async def process_color_selection(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Обработка выбора цвета - переход к выбору размера.
+
+    Args:
+        callback: CallbackQuery
+        session: Сессия БД
+        state: FSM контекст
+    """
+    parts = callback.data.split(":")
+    product_id = int(parts[1])
+    color = parts[2]
+
+    # Получаем товар для отображения размеров
+    product_service = ProductService(session)
+    product = await product_service.get_product(product_id)
+
+    if not product:
+        await callback.answer("❌ Товар не найден", show_alert=True)
+        return
+
+    # Сохраняем цвет
+    await state.update_data(color=color)
+
+    data = await state.get_data()
+    product_name = data.get("product_name", "Товар")
+    product_price = data.get("product_price", "—")
+    product_fit = data.get("product_fit")
+
+    text = (
+        f"🛒 <b>Оформление заказа</b>\n\n"
+        f"📦 Товар: {product_name}\n"
+        f"💰 Цена: {product_price}\n"
+        f"🎨 Цвет: {color}\n\n"
+    )
+
+    # Добавляем информацию о крое если есть
+    if product_fit:
+        text += f"👔 Крой: {product_fit}\n\n"
+
+    text += "Выберите размер:"
+
+    keyboard = get_size_selection_keyboard(
+        product_id=product.id,
+        sizes=product.sizes_list,
+        fit=product_fit,
+        color=color,
+    )
+
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+    await state.set_state(OrderStates.SELECT_SIZE)
+    await callback.answer()
+
+    logger.info(
+        "Color selected",
+        user_id=callback.from_user.id,
+        product_id=product_id,
+        color=color,
     )
 
 
@@ -119,6 +217,8 @@ async def process_size_selection(
     parts = callback.data.split(":")
     product_id = int(parts[1])
     size = parts[2]
+    # Цвет может быть передан как 4-й параметр (если был выбран)
+    color_from_callback = parts[3] if len(parts) > 3 else None
 
     # Обновляем данные
     await state.update_data(size=size)
@@ -126,11 +226,18 @@ async def process_size_selection(
     data = await state.get_data()
     product_name = data.get("product_name", "Товар")
     product_price = data.get("product_price", "—")
+    color = data.get("color") or color_from_callback
 
     text = (
         f"🛒 <b>Оформление заказа</b>\n\n"
         f"📦 Товар: {product_name}\n"
         f"💰 Цена: {product_price}\n"
+    )
+
+    if color:
+        text += f"🎨 Цвет: {color}\n"
+
+    text += (
         f"📏 Размер: {size.upper()}\n\n"
         f"Теперь поделитесь вашим контактом для связи:\n"
         f"• Нажмите кнопку ниже чтобы поделиться номером телефона\n"
@@ -154,6 +261,7 @@ async def process_size_selection(
         user_id=callback.from_user.id,
         product_id=product_id,
         size=size,
+        color=color,
     )
 
 
@@ -278,6 +386,7 @@ async def show_order_confirmation(
     product_price = data.get("product_price", "—")
     product_id = data.get("product_id")
     size = data.get("size", "—")
+    color = data.get("color")
     contact = data.get("customer_contact", "—")
 
     text = (
@@ -285,6 +394,12 @@ async def show_order_confirmation(
         f"Проверьте данные заказа:\n\n"
         f"📦 Товар: {product_name}\n"
         f"💰 Цена: {product_price}\n"
+    )
+
+    if color:
+        text += f"🎨 Цвет: {color}\n"
+
+    text += (
         f"📏 Размер: {size.upper()}\n"
         f"📞 Контакт: {contact}\n\n"
         f"Все верно?"
@@ -323,6 +438,7 @@ async def confirm_and_create_order(
 
     product_id = data.get("product_id")
     size = data.get("size")
+    color = data.get("color")
     contact = data.get("customer_contact")
 
     if not all([product_id, size, contact]):
@@ -339,6 +455,7 @@ async def confirm_and_create_order(
             product_id=product_id,
             size=size,
             customer_contact=contact,
+            color=color,
         )
 
         await session.commit()

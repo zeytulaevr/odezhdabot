@@ -28,6 +28,7 @@ class OrderService:
         product_id: int,
         size: str,
         customer_contact: str,
+        color: str | None = None,
     ) -> Order:
         """Создать новый заказ.
 
@@ -36,6 +37,7 @@ class OrderService:
             product_id: ID товара
             size: Размер товара
             customer_contact: Контактные данные клиента
+            color: Выбранный цвет (опционально)
 
         Returns:
             Созданный заказ
@@ -44,6 +46,7 @@ class OrderService:
             user_id=user_id,
             product_id=product_id,
             size=size,
+            color=color,
             customer_contact=customer_contact,
             status="new",
         )
@@ -58,6 +61,7 @@ class OrderService:
             user_id=user_id,
             product_id=product_id,
             size=size,
+            color=color,
         )
 
         return order

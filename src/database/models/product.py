@@ -58,9 +58,32 @@ class Product(Base, TimestampMixin):
         comment="Доступные размеры товара (массив)",
     )
 
-    # Telegram file_id для фото
+    # Доступные цвета (JSONB массив)
+    colors: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        comment="Доступные цвета товара (массив)",
+    )
+
+    # Тип кроя
+    fit: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Тип кроя (например: Regular, Slim, Oversize)",
+    )
+
+    # Медиа файлы (фото/видео)
+    media: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        comment="Медиа файлы товара (до 10 фото/видео): [{type: 'photo'|'video', file_id: '...'}]",
+    )
+
+    # Telegram file_id для фото (deprecated, используйте media)
     photo_file_id: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, comment="Telegram file_id фотографии товара"
+        String(255), nullable=True, comment="Telegram file_id фотографии товара (устаревшее)"
     )
 
     # Статус активности
@@ -90,3 +113,23 @@ class Product(Base, TimestampMixin):
     def sizes_list(self) -> list[str]:
         """Список доступных размеров."""
         return self.sizes if isinstance(self.sizes, list) else []
+
+    @property
+    def colors_list(self) -> list[str]:
+        """Список доступных цветов."""
+        return self.colors if isinstance(self.colors, list) else []
+
+    @property
+    def media_list(self) -> list[dict[str, Any]]:
+        """Список медиа файлов."""
+        return self.media if isinstance(self.media, list) else []
+
+    @property
+    def has_media(self) -> bool:
+        """Есть ли медиа файлы."""
+        return len(self.media_list) > 0
+
+    @property
+    def primary_media(self) -> dict[str, Any] | None:
+        """Первый медиа файл (основное фото/видео)."""
+        return self.media_list[0] if self.has_media else None
