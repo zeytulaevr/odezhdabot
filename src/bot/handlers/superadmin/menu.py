@@ -265,10 +265,20 @@ async def process_superadmin_callback(
 
     # Остальные действия
     elif action == "orders":
-        # Перенаправляем на обработчик заказов
-        from src.bot.handlers.admin.orders import filter_admin_orders
-        callback.data = "admin_orders_filter:all"
-        await filter_admin_orders(callback, session, state)
+        # Показываем фильтры заказов
+        from src.bot.keyboards.orders import get_admin_orders_filters_keyboard
+        text = (
+            "📋 <b>Управление заказами</b>\n\n"
+            "Выберите статус заказов для просмотра:"
+        )
+        keyboard = get_admin_orders_filters_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard,
+            )
         return
     elif action == "broadcast":
         # Перенаправление на меню рассылок
@@ -276,10 +286,20 @@ async def process_superadmin_callback(
         await broadcast_main(callback, state)
         return
     elif action == "users":
-        # Перенаправляем на меню управления пользователями
-        from src.bot.handlers.admin.users import show_users_menu
-        callback.data = "users:menu"
-        await show_users_menu(callback, state)
+        # Показываем меню управления пользователями
+        from src.bot.keyboards.users import get_users_menu_keyboard
+        text = (
+            "👤 <b>Управление пользователями</b>\n\n"
+            "Выберите действие:"
+        )
+        keyboard = get_users_menu_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard,
+            )
         return
     elif action == "settings":
         # Настройки - показываем информацию

@@ -189,12 +189,21 @@ async def process_admin_callback(
             )
         return
 
-    # Заказы - перенаправляем на обработчик заказов
+    # Заказы - показываем фильтры заказов
     if action == "orders":
-        from src.bot.handlers.admin.orders import filter_admin_orders
-        # По умолчанию показываем все заказы
-        callback.data = "admin_orders_filter:all"
-        await filter_admin_orders(callback, session, state)
+        from src.bot.keyboards.orders import get_admin_orders_filters_keyboard
+        text = (
+            "📋 <b>Управление заказами</b>\n\n"
+            "Выберите статус заказов для просмотра:"
+        )
+        keyboard = get_admin_orders_filters_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard,
+            )
         return
 
     # Статистика модерации
@@ -220,11 +229,21 @@ async def process_admin_callback(
             )
         return
 
-    # Пользователи - перенаправляем на меню управления пользователями
+    # Пользователи - показываем меню управления пользователями
     elif action == "users":
-        from src.bot.handlers.admin.users import show_users_menu
-        callback.data = "users:menu"
-        await show_users_menu(callback, state)
+        from src.bot.keyboards.users import get_users_menu_keyboard
+        text = (
+            "👤 <b>Управление пользователями</b>\n\n"
+            "Выберите действие:"
+        )
+        keyboard = get_users_menu_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard,
+            )
         return
 
     # Помощь
