@@ -61,7 +61,7 @@ class OrderItem(Base, TimestampMixin):
 
     # Цена на момент заказа (сохраняем для истории)
     price_at_order: Mapped[Decimal] = mapped_column(
-        Decimal(10, 2), nullable=False, comment="Цена товара на момент заказа"
+        Numeric(10, 2), nullable=False, comment="Цена товара на момент заказа"
     )
 
     # Название товара на момент заказа (на случай удаления товара)
