@@ -18,6 +18,7 @@ from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.category import CategoryRepository
 from src.services.forum_service import ForumService
+from src.utils.cancel_handler import cancel_action_and_return_to_menu, get_cancel_keyboard
 from src.utils.navigation import edit_message_with_navigation
 
 logger = get_logger(__name__)
@@ -107,11 +108,14 @@ async def add_category_start(
 
     text = (
         "➕ <b>Добавление категории</b>\n\n"
-        "Введите название категории\n\n"
-        "Отправьте /cancel для отмены"
+        "Введите название категории"
     )
 
-    await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_cancel_keyboard("cancel_category"),
+        parse_mode="HTML"
+    )
     await state.set_state(CategoryStates.ADD_NAME)
 
 
@@ -284,11 +288,14 @@ async def set_thread_manual_start(
         "Как узнать thread_id:\n"
         "1. Откройте тему в Telegram\n"
         "2. Используйте @userinfobot\n"
-        "3. Или скопируйте из URL темы\n\n"
-        "Отправьте /cancel для отмены"
+        "3. Или скопируйте из URL темы"
     )
 
-    await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_cancel_keyboard("cancel_category"),
+        parse_mode="HTML"
+    )
     await state.set_state(CategoryStates.SET_THREAD_MANUAL)
 
 
@@ -340,11 +347,14 @@ async def rename_category_start(
 
     text = (
         "✏️ <b>Переименование категории</b>\n\n"
-        "Введите новое название категории\n\n"
-        "Отправьте /cancel для отмены"
+        "Введите новое название категории"
     )
 
-    await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_cancel_keyboard("cancel_category"),
+        parse_mode="HTML"
+    )
     await state.set_state(CategoryStates.RENAME_NAME)
 
 
@@ -406,3 +416,20 @@ async def delete_category(
         await categories_list(callback, session, state)
     else:
         await callback.answer("❌ Ошибка удаления", show_alert=True)
+
+
+@router.callback_query(F.data == "cancel_category", CategoryStates.ADD_NAME)
+@router.callback_query(F.data == "cancel_category", CategoryStates.RENAME_NAME)
+@router.callback_query(F.data == "cancel_category", CategoryStates.SET_THREAD_MANUAL)
+async def cancel_category_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Отмена действия с категорией через inline кнопку."""
+    await cancel_action_and_return_to_menu(
+        callback=callback,
+        state=state,
+        user=user,
+        cancel_message="❌ Действие с категорией отменено",
+    )

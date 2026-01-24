@@ -19,6 +19,7 @@ from src.core.logging import get_logger
 from src.database.models.user import User
 from src.services.broadcast_service import BroadcastService
 from src.utils.broadcast_sender import BroadcastSender
+from src.utils.cancel_handler import cancel_action_and_return_to_menu, get_cancel_keyboard
 
 logger = get_logger(__name__)
 
@@ -55,12 +56,12 @@ async def start_broadcast_creation(
         "• <b>жирный</b>\n"
         "• <i>курсив</i>\n"
         "• <code>моноширинный</code>\n"
-        "• <a href='url'>ссылка</a>\n\n"
-        "Отправьте /cancel для отмены"
+        "• <a href='url'>ссылка</a>"
     )
 
     await callback.message.edit_text(
         text=text,
+        reply_markup=get_cancel_keyboard("cancel_broadcast"),
         parse_mode="HTML",
     )
 
@@ -510,19 +511,22 @@ async def start_broadcast_sending(
 
 
 @router.callback_query(F.data == "broadcast_cancel", IsSuperAdmin())
+@router.callback_query(F.data == "cancel_broadcast", IsSuperAdmin())
 async def cancel_broadcast_creation(
     callback: CallbackQuery,
     state: FSMContext,
+    user: User,
 ) -> None:
-    """Отменить создание рассылки.
+    """Отменить создание рассылки и вернуться в меню.
 
     Args:
         callback: CallbackQuery
         state: FSM контекст
+        user: Пользователь из БД
     """
-    await state.clear()
-    await callback.message.edit_text(
-        text="❌ Создание рассылки отменено",
-        parse_mode="HTML",
+    await cancel_action_and_return_to_menu(
+        callback=callback,
+        state=state,
+        user=user,
+        cancel_message="❌ Создание рассылки отменено",
     )
-    await callback.answer()

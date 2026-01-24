@@ -7,8 +7,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.bot.keyboards.main_menu import get_user_menu
+from src.bot.keyboards.main_menu import (
+    get_admin_menu,
+    get_superadmin_menu,
+    get_user_menu,
+)
 from src.bot.keyboards.orders import get_size_selection_keyboard
+from src.core.constants import UserRole
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.category import CategoryRepository
@@ -29,18 +34,29 @@ async def noop_handler(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "back_to_menu")
-async def back_to_menu(callback: CallbackQuery, state: FSMContext) -> None:
+async def back_to_menu(callback: CallbackQuery, state: FSMContext, user: User) -> None:
     """Вернуться в главное меню."""
     await NavigationStack.clear(state)
 
+    # Определяем меню в зависимости от роли пользователя
+    if user.role == UserRole.SUPER_ADMIN:
+        menu_markup = get_superadmin_menu()
+        menu_title = "👑 Супер-админ панель"
+    elif user.role == UserRole.ADMIN:
+        menu_markup = get_admin_menu()
+        menu_title = "👨‍💼 Админ-панель"
+    else:
+        menu_markup = get_user_menu()
+        menu_title = "🏠 Главное меню"
+
     text = (
-        "🏠 <b>Главное меню</b>\n\n"
+        f"{menu_title}\n\n"
         "Выберите действие:"
     )
 
     await callback.message.edit_text(
         text=text,
-        reply_markup=get_user_menu(),
+        reply_markup=menu_markup,
         parse_mode="HTML",
     )
     await callback.answer()

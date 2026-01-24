@@ -169,9 +169,9 @@ class MonitoringService:
         # Всего товаров
         total = await self.session.scalar(select(func.count(Product.id)))
 
-        # Активные (is_available)
+        # Активные (is_active)
         active = await self.session.scalar(
-            select(func.count(Product.id)).where(Product.is_available == True)
+            select(func.count(Product.id)).where(Product.is_active == True)
         )
 
         # По категориям

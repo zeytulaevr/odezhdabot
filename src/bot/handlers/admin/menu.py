@@ -2,30 +2,50 @@
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.filters.role import IsAdmin
 from src.bot.keyboards.main_menu import get_admin_menu, get_admin_panel_keyboard
+from src.core.constants import CallbackPrefix
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.moderated_message import ModeratedMessageRepository
+from src.utils.navigation import NavigationStack, edit_message_with_navigation
 
 logger = get_logger(__name__)
 
 router = Router(name="admin_menu")
 
 
+def get_back_to_admin_keyboard() -> InlineKeyboardBuilder:
+    """Создать клавиатуру с кнопкой 'Назад в админ-панель'."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data=CallbackPrefix.BACK),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="admin:menu"),
+    )
+    return builder
+
+
 @router.message(Command("admin"), IsAdmin())
 @router.message(F.text == "📋 Админ-панель", IsAdmin())
-async def cmd_admin(message: Message, user: User) -> None:
+async def cmd_admin(message: Message, user: User, state: FSMContext) -> None:
     """Команда /admin или кнопка "Админ-панель" - открыть админ-панель.
 
     Args:
         message: Входящее сообщение
         user: Пользователь из БД
+        state: FSM контекст
     """
     logger.info("Admin panel opened", user_id=user.id, role=user.role)
+
+    # Очищаем историю навигации при входе в админ-панель
+    await NavigationStack.clear(state)
 
     text = (
         f"👨‍💼 <b>Админ-панель</b>\n\n"
@@ -51,6 +71,8 @@ async def show_orders_menu(message: Message, user: User) -> None:
     """
     logger.info("Orders menu opened", user_id=user.id)
 
+    from src.bot.keyboards.orders import get_admin_orders_filters_keyboard
+
     text = (
         "📋 <b>Управление заказами</b>\n\n"
         "Выберите статус заказов для просмотра:"
@@ -58,39 +80,58 @@ async def show_orders_menu(message: Message, user: User) -> None:
 
     await message.answer(
         text=text,
-        reply_markup=get_admin_panel_keyboard(),
+        reply_markup=get_admin_orders_filters_keyboard(),
         parse_mode="HTML",
     )
 
 
 @router.message(F.text == "📊 Статистика", IsAdmin())
-async def show_statistics(message: Message, user: User) -> None:
+async def show_statistics(message: Message, user: User, session: AsyncSession) -> None:
     """Показать статистику.
 
     Args:
         message: Входящее сообщение
         user: Пользователь из БД
+        session: Сессия БД
     """
     logger.info("Statistics opened", user_id=user.id)
 
-    # TODO: Реализовать подсчёт статистики
+    from src.database.repositories.order import OrderRepository
+    from src.database.repositories.user import UserRepository
+
+    # Получаем статистику
+    order_repo = OrderRepository(session)
+    user_repo = UserRepository(session)
+
+    # Статистика заказов
+    all_orders = await order_repo.get_all_orders(limit=10000)
+    new_orders = [o for o in all_orders if o.status == "new"]
+    processing_orders = [o for o in all_orders if o.status in ["processing", "paid", "shipped"]]
+    completed_orders = [o for o in all_orders if o.status == "completed"]
+
+    # Статистика пользователей
+    total_users = await user_repo.count_users()
+    all_users = await user_repo.get_all_users(limit=10000)
+    active_users = [u for u in all_users if not u.is_banned]
+    banned_users = [u for u in all_users if u.is_banned]
+
     text = (
         "📊 <b>Статистика</b>\n\n"
-        "📦 Всего заказов: <code>0</code>\n"
-        "🆕 Новых: <code>0</code>\n"
-        "🔄 В обработке: <code>0</code>\n"
-        "✅ Завершённых: <code>0</code>\n\n"
-        "👥 Всего пользователей: <code>0</code>\n"
-        "🟢 Активных: <code>0</code>\n"
-        "🔴 Забаненных: <code>0</code>"
+        f"📦 Всего заказов: <code>{len(all_orders)}</code>\n"
+        f"🆕 Новых: <code>{len(new_orders)}</code>\n"
+        f"🔄 В обработке: <code>{len(processing_orders)}</code>\n"
+        f"✅ Завершённых: <code>{len(completed_orders)}</code>\n\n"
+        f"👥 Всего пользователей: <code>{total_users}</code>\n"
+        f"🟢 Активных: <code>{len(active_users)}</code>\n"
+        f"🔴 Забаненных: <code>{len(banned_users)}</code>"
     )
 
     await message.answer(text=text, parse_mode="HTML")
 
 
 @router.message(F.text == "👤 Пользователи", IsAdmin())
-async def show_users_menu(message: Message, user: User) -> None:
-    """Показать меню пользователей.
+async def show_users_menu_reply(message: Message, user: User) -> None:
+    """Показать меню пользователей из reply клавиатуры.
 
     Args:
         message: Входящее сообщение
@@ -98,15 +139,18 @@ async def show_users_menu(message: Message, user: User) -> None:
     """
     logger.info("Users menu opened", user_id=user.id)
 
+    from src.bot.keyboards.users import get_users_menu_keyboard
+
     text = (
         "👤 <b>Управление пользователями</b>\n\n"
-        "Здесь вы можете:\n"
-        "• Просмотреть список пользователей\n"
-        "• Заблокировать/разблокировать пользователя\n"
-        "• Посмотреть информацию о пользователе"
+        "Выберите действие:"
     )
 
-    await message.answer(text=text, parse_mode="HTML")
+    await message.answer(
+        text=text,
+        reply_markup=get_users_menu_keyboard(),
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data.startswith("admin:"), IsAdmin())
@@ -114,6 +158,7 @@ async def process_admin_callback(
     callback: CallbackQuery,
     user: User,
     session: AsyncSession,
+    state: FSMContext,
 ) -> None:
     """Обработка callback от админ-панели.
 
@@ -121,34 +166,48 @@ async def process_admin_callback(
         callback: Callback query
         user: Пользователь из БД
         session: Сессия БД
+        state: FSM контекст
     """
     parts = callback.data.split(":")
     action = parts[1] if len(parts) > 1 else None
     subaction = parts[2] if len(parts) > 2 else None
 
-    # Заказы
+    # Возврат в главное меню админки
+    if action == "menu":
+        await callback.answer()
+        text = (
+            f"👨‍💼 <b>Админ-панель</b>\n\n"
+            f"Добро пожаловать, <b>{user.full_name}</b>!\n"
+            f"Роль: <code>{user.role}</code>\n\n"
+            f"Выберите действие:"
+        )
+        if callback.message:
+            await callback.message.edit_text(
+                text=text,
+                reply_markup=get_admin_panel_keyboard(),
+                parse_mode="HTML",
+            )
+        return
+
+    # Заказы - показываем фильтры заказов
     if action == "orders":
-        if subaction in ["new", "processing", "completed"]:
-            status_names = {
-                "new": "новые",
-                "processing": "в обработке",
-                "completed": "завершённые",
-            }
-            await callback.answer()
-            text = f"📋 <b>Заказы ({status_names[subaction]})</b>\n\nФункционал в разработке..."
-            if callback.message:
-                await callback.message.edit_text(text=text, parse_mode="HTML")
-        else:
-            await callback.answer()
-            text = "📋 <b>Заказы</b>\n\nФункционал в разработке..."
-            if callback.message:
-                await callback.message.edit_text(text=text, parse_mode="HTML")
+        from src.bot.keyboards.orders import get_admin_orders_filters_keyboard
+        text = (
+            "📋 <b>Управление заказами</b>\n\n"
+            "Выберите статус заказов для просмотра:"
+        )
+        keyboard = get_admin_orders_filters_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard,
+            )
         return
 
     # Статистика модерации
     elif action == "stats":
-        await callback.answer()
-
         mod_repo = ModeratedMessageRepository(session)
         stats = await mod_repo.get_spam_statistics(days=7)
 
@@ -160,21 +219,35 @@ async def process_admin_callback(
             f"⏳ На проверке: <b>{stats['pending']}</b>\n\n"
             f"💡 Используйте /modqueue для просмотра очереди"
         )
+        keyboard = get_back_to_admin_keyboard()
         if callback.message:
-            await callback.message.edit_text(text=text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
         return
 
-    # Пользователи
+    # Пользователи - показываем меню управления пользователями
     elif action == "users":
-        await callback.answer()
-        text = "👤 <b>Пользователи</b>\n\nФункционал в разработке..."
+        from src.bot.keyboards.users import get_users_menu_keyboard
+        text = (
+            "👤 <b>Управление пользователями</b>\n\n"
+            "Выберите действие:"
+        )
+        keyboard = get_users_menu_keyboard()
         if callback.message:
-            await callback.message.edit_text(text=text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard,
+            )
         return
 
     # Помощь
     elif action == "help":
-        await callback.answer()
         text = (
             "ℹ️ <b>Помощь</b>\n\n"
             "<b>Доступные команды:</b>\n"
@@ -185,12 +258,24 @@ async def process_admin_callback(
             "• Одобряйте или отклоняйте отзывы\n"
             "• Банте спамеров при необходимости"
         )
+        keyboard = get_back_to_admin_keyboard()
         if callback.message:
-            await callback.message.edit_text(text=text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )
         return
 
     else:
         await callback.answer()
         text = "⚠️ Неизвестное действие"
+        keyboard = get_back_to_admin_keyboard()
         if callback.message:
-            await callback.message.edit_text(text=text, parse_mode="HTML")
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard.as_markup(),
+            )

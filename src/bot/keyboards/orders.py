@@ -226,6 +226,10 @@ def get_admin_orders_filters_keyboard(current_filter: str = "all") -> InlineKeyb
         InlineKeyboardButton(text="◀️ Назад", callback_data="back")
     )
 
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="admin:menu")
+    )
+
     return builder.as_markup()
 
 
@@ -272,6 +276,10 @@ def get_order_actions_keyboard(order_id: int, current_status: str) -> InlineKeyb
             text="◀️ К списку заказов",
             callback_data="admin_orders_filter:all",
         )
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="🏠 В меню", callback_data="admin:menu")
     )
 
     return builder.as_markup()

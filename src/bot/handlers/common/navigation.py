@@ -4,8 +4,12 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
-from src.bot.keyboards.main_menu import get_user_menu
-from src.core.constants import CallbackPrefix
+from src.bot.keyboards.main_menu import (
+    get_admin_menu,
+    get_superadmin_menu,
+    get_user_menu,
+)
+from src.core.constants import CallbackPrefix, UserRole
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.utils.navigation import go_back
@@ -58,13 +62,24 @@ async def handle_back_button(
             "Navigation history empty, showing main menu",
             user_id=user.id,
         )
+        # Определяем меню в зависимости от роли пользователя
+        if user.role == UserRole.SUPER_ADMIN:
+            menu_markup = get_superadmin_menu()
+            menu_title = "👑 Супер-админ панель"
+        elif user.role == UserRole.ADMIN:
+            menu_markup = get_admin_menu()
+            menu_title = "👨‍💼 Админ-панель"
+        else:
+            menu_markup = get_user_menu()
+            menu_title = "🏠 Главное меню"
+
         # Показываем главное меню с клавиатурой
         await callback.message.edit_text(
             text=(
-                "🏠 <b>Главное меню</b>\n\n"
+                f"{menu_title}\n\n"
                 "История навигации пуста.\n"
                 "Выберите действие из меню ниже."
             ),
-            reply_markup=get_user_menu(),
+            reply_markup=menu_markup,
             parse_mode="HTML",
         )

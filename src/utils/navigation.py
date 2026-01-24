@@ -85,17 +85,10 @@ class NavigationStack:
         if not history:
             return None
 
-        # Убираем последний элемент (текущий экран)
-        history.pop()
+        # Извлекаем последний элемент из истории
+        prev_item_data = history.pop()
 
-        # Получаем предыдущий экран (но не удаляем его, чтобы можно было вернуться еще раз)
-        if not history:
-            await state.update_data({cls.NAVIGATION_KEY: []})
-            return None
-
-        prev_item_data = history[-1]
-
-        # Обновляем историю
+        # Обновляем историю в state
         await state.update_data({cls.NAVIGATION_KEY: history})
 
         # Десериализуем и возвращаем
@@ -308,18 +301,27 @@ async def edit_message_with_navigation(
         save_to_history: Сохранять ли в истории (по умолчанию True)
         **extra_data: Дополнительные данные
     """
-    # Сначала сохраняем текущий экран в историю
-    if save_to_history:
+    # Получаем текущий экран ДО изменения
+    current_text = callback.message.text or callback.message.caption or ""
+    current_markup = callback.message.reply_markup
+
+    # Проверяем, отличается ли новый контент от текущего
+    if current_text == text and current_markup == markup:
+        await callback.answer()
+        return
+
+    # Сохраняем ТЕКУЩИЙ экран в историю (с которого уходим)
+    if save_to_history and current_text:
         await NavigationStack.push(
             state=state,
-            text=text,
-            markup=markup,
+            text=current_text,
+            markup=current_markup,
             parse_mode=parse_mode,
             callback_data=callback.data,
             **extra_data,
         )
 
-    # Затем редактируем сообщение
+    # Затем редактируем сообщение на НОВЫЙ экран
     await callback.message.edit_text(
         text=text,
         reply_markup=markup,

@@ -15,6 +15,7 @@ from src.core.logging import get_logger
 from src.database.models.user import User
 from src.database.repositories.category import CategoryRepository
 from src.services.product_service import ProductService
+from src.utils.cancel_handler import cancel_action_and_return_to_menu, get_cancel_keyboard
 
 logger = get_logger(__name__)
 
@@ -50,11 +51,14 @@ async def start_add_product(
         "➕ <b>Добавление товара</b>\n\n"
         "Шаг 1/8: Отправьте медиа (фото/видео)\n\n"
         "Вы можете отправить до 10 фото или видео.\n"
-        "Когда закончите, отправьте команду /done\n\n"
-        "Отправьте /cancel для отмены"
+        "Когда закончите, отправьте команду /done"
     )
 
-    await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_cancel_keyboard("cancel_add_product"),
+        parse_mode="HTML"
+    )
     await state.set_state(AddProductStates.MEDIA)
 
 
@@ -361,12 +365,21 @@ async def process_category(
         await state.clear()
 
 
-@router.message(Command("cancel"))
-async def cancel_handler(message: Message, state: FSMContext) -> None:
-    """Отмена добавления."""
+@router.callback_query(F.data == "cancel_add_product")
+async def cancel_add_product_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Отмена добавления товара через inline кнопку."""
     current_state = await state.get_state()
     if current_state is None:
+        await callback.answer()
         return
 
-    await state.clear()
-    await message.answer("❌ Добавление товара отменено")
+    await cancel_action_and_return_to_menu(
+        callback=callback,
+        state=state,
+        user=user,
+        cancel_message="❌ Добавление товара отменено",
+    )
