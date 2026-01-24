@@ -4,7 +4,8 @@ from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.cart import (
@@ -12,13 +13,23 @@ from src.bot.keyboards.cart import (
     get_cart_item_keyboard,
     get_cart_view_keyboard,
 )
+from src.bot.keyboards.orders import get_contact_request_keyboard, get_order_completed_keyboard
 from src.core.logging import get_logger
 from src.database.models.user import User
 from src.services.cart_service import CartService
+from src.services.notification_service import NotificationService
+from src.services.order_service import OrderService
 
 logger = get_logger(__name__)
 
 router = Router(name="user_cart")
+
+
+class CheckoutStates(StatesGroup):
+    """Состояния оформления заказа из корзины."""
+
+    ENTER_CONTACT = State()
+    CONFIRM = State()
 
 
 @router.callback_query(F.data == "cart_view")
@@ -373,12 +384,6 @@ async def start_checkout(
         user: Пользователь
         state: FSM контекст
     """
-    from aiogram.fsm.state import State, StatesGroup
-
-    class CheckoutStates(StatesGroup):
-        """Состояния оформления заказа из корзины."""
-        ENTER_CONTACT = State()
-
     cart_service = CartService(session)
     cart_items = await cart_service.get_cart_items(user.id)
 
@@ -386,12 +391,25 @@ async def start_checkout(
         await callback.answer("❌ Корзина пуста", show_alert=True)
         return
 
+    # Подсчитываем общую сумму
+    total_price = Decimal("0")
+    total_quantity = 0
+    for item in cart_items:
+        if item.product:
+            total_price += item.product.price * item.quantity
+            total_quantity += item.quantity
+
     # Сохраняем информацию о корзине в FSM
-    await state.update_data(checkout_from_cart=True)
+    await state.update_data(
+        checkout_from_cart=True,
+        total_price=float(total_price),
+        total_quantity=total_quantity,
+    )
 
     text = (
         "🛒 <b>Оформление заказа</b>\n\n"
-        f"📦 Товаров в корзине: {len(cart_items)} шт.\n\n"
+        f"📦 Товаров: {len(cart_items)} шт. ({total_quantity} ед.)\n"
+        f"💰 Итого: {total_price:,.2f} ₽\n\n"
         "Поделитесь вашим контактом для связи:\n"
         "• Нажмите кнопку ниже чтобы поделиться номером телефона\n"
         "• Или введите контакт вручную (телефон, username, email)"
@@ -416,18 +434,330 @@ async def start_checkout(
     )
 
 
-# Временный хендлер для завершения checkout (будет расширен позже)
-@router.message(lambda message: message.text and message.text.startswith("+"))
-async def process_checkout_contact(
+@router.message(CheckoutStates.ENTER_CONTACT, F.contact)
+async def process_checkout_contact_shared(
     message: Message,
     session: AsyncSession,
-    user: User,
     state: FSMContext,
 ) -> None:
-    """Временный обработчик контакта для checkout."""
-    await message.answer(
-        "✅ Функционал оформления заказа из корзины будет доработан в следующей версии.\n"
-        "Пока используйте оформление отдельных товаров через каталог.",
-        reply_markup=ReplyKeyboardRemove(),
+    """Обработка переданного контакта через RequestContact для checkout.
+
+    Args:
+        message: Message с контактом
+        session: Сессия БД
+        state: FSM контекст
+    """
+    contact = message.contact
+    phone = contact.phone_number
+
+    # Сохраняем контакт
+    await state.update_data(customer_contact=phone)
+
+    # Переходим к подтверждению
+    await show_checkout_confirmation(message, session, state)
+
+
+@router.message(CheckoutStates.ENTER_CONTACT, F.text == "✏️ Ввести вручную")
+async def request_manual_contact_checkout(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    """Запрос на ручной ввод контакта для checkout.
+
+    Args:
+        message: Message
+        state: FSM контекст
+    """
+    text = (
+        "✏️ <b>Ввод контакта</b>\n\n"
+        "Введите ваш контакт для связи:\n"
+        "• Телефон: +79001234567\n"
+        "• Username: @username\n"
+        "• Email: email@example.com\n\n"
+        "Или нажмите /cancel для отмены"
     )
+
+    await message.answer(
+        text=text,
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode="HTML",
+    )
+
+
+@router.message(CheckoutStates.ENTER_CONTACT, F.text == "❌ Отменить")
+async def cancel_checkout(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    """Отменить оформление заказа из корзины.
+
+    Args:
+        message: Message
+        state: FSM контекст
+    """
     await state.clear()
+
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🛒 Вернуться в корзину", callback_data="cart_view")
+    )
+    builder.row(
+        InlineKeyboardButton(text="📦 Продолжить покупки", callback_data="catalog")
+    )
+
+    text = (
+        "❌ <b>Оформление заказа отменено</b>\n\n"
+        "Ваша корзина сохранена."
+    )
+
+    await message.answer(
+        text=text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+    logger.info("Checkout cancelled", user_id=message.from_user.id)
+
+
+@router.message(CheckoutStates.ENTER_CONTACT, F.text)
+async def process_manual_contact_checkout(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Обработка контакта введенного вручную для checkout.
+
+    Args:
+        message: Message с контактом
+        session: Сессия БД
+        state: FSM контекст
+    """
+    contact = message.text.strip()
+
+    if len(contact) < 5:
+        await message.answer(
+            "❌ Контакт слишком короткий. Введите корректный номер телефона, username или email."
+        )
+        return
+
+    # Сохраняем контакт
+    await state.update_data(customer_contact=contact)
+
+    # Переходим к подтверждению
+    await show_checkout_confirmation(message, session, state)
+
+
+async def show_checkout_confirmation(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Показать экран подтверждения заказа из корзины.
+
+    Args:
+        message: Message
+        session: Сессия БД
+        state: FSM контекст
+    """
+    data = await state.get_data()
+    contact = data.get("customer_contact", "—")
+    total_price = data.get("total_price", 0)
+    total_quantity = data.get("total_quantity", 0)
+
+    # Получаем товары из корзины
+    from src.database.models.user import User
+
+    user_id = message.from_user.id
+    result = await session.execute(
+        __import__("sqlalchemy", fromlist=["select"]).select(User).where(
+            User.telegram_id == user_id
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    cart_service = CartService(session)
+    cart_items = await cart_service.get_cart_items(user.id)
+
+    text = (
+        "✅ <b>Подтверждение заказа</b>\n\n"
+        "Проверьте данные заказа:\n\n"
+    )
+
+    # Список товаров
+    for i, item in enumerate(cart_items, 1):
+        product = item.product
+        if product:
+            text += f"{i}. {item.display_name} × {item.quantity}\n"
+            text += f"   💰 {(product.price * item.quantity):,.2f} ₽\n\n"
+
+    text += f"━━━━━━━━━━━━━━━━\n"
+    text += f"📦 Всего: {total_quantity} ед.\n"
+    text += f"💰 <b>Итого: {total_price:,.2f} ₽</b>\n"
+    text += f"📞 Контакт: {contact}\n\n"
+    text += "Все верно?"
+
+    # Создаем клавиатуру подтверждения
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Подтвердить заказ",
+            callback_data="checkout_confirm",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="❌ Отменить",
+            callback_data="checkout_cancel",
+        )
+    )
+
+    await message.answer(
+        text=text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+    await state.set_state(CheckoutStates.CONFIRM)
+
+
+@router.callback_query(CheckoutStates.CONFIRM, F.data == "checkout_confirm")
+async def confirm_and_create_orders(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Подтвердить и создать заказы из корзины.
+
+    Args:
+        callback: CallbackQuery
+        session: Сессия БД
+        state: FSM контекст
+        user: Пользователь
+    """
+    data = await state.get_data()
+    contact = data.get("customer_contact")
+
+    if not contact:
+        await callback.answer("❌ Ошибка данных заказа", show_alert=True)
+        await state.clear()
+        return
+
+    # Получаем товары из корзины
+    cart_service = CartService(session)
+    cart_items = await cart_service.get_cart_items(user.id)
+
+    if not cart_items:
+        await callback.answer("❌ Корзина пуста", show_alert=True)
+        await state.clear()
+        return
+
+    # Создаем заказы для каждого товара в корзине
+    order_service = OrderService(session)
+    created_orders = []
+
+    try:
+        for item in cart_items:
+            order = await order_service.create_order(
+                user_id=user.id,
+                product_id=item.product_id,
+                size=item.size,
+                customer_contact=contact,
+                color=item.color,
+                quantity=item.quantity,
+            )
+            created_orders.append(order)
+
+        await session.commit()
+
+        # Уведомляем пользователя о каждом заказе
+        for order in created_orders:
+            await NotificationService.notify_user_order_created(callback.bot, order)
+            # Уведомляем админов
+            await NotificationService.notify_admins_new_order(callback.bot, order)
+
+        # Очищаем корзину после успешного оформления
+        await cart_service.clear_cart(user.id)
+        await session.commit()
+
+        text = (
+            f"✅ <b>Заказы оформлены!</b>\n\n"
+            f"📋 Создано заказов: {len(created_orders)}\n"
+            f"📋 Номера заказов: {', '.join(f'#{o.id}' for o in created_orders)}\n\n"
+            f"Мы свяжемся с вами в ближайшее время.\n"
+            f"Следите за статусом в разделе 'Мои заказы'."
+        )
+
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=get_order_completed_keyboard(),
+            parse_mode="HTML",
+        )
+
+        await state.clear()
+        await callback.answer("✅ Заказы созданы!")
+
+        logger.info(
+            "Orders created from cart",
+            user_id=user.id,
+            orders_count=len(created_orders),
+            order_ids=[o.id for o in created_orders],
+        )
+
+    except Exception as e:
+        logger.error(
+            "Failed to create orders from cart",
+            user_id=user.id,
+            error=str(e),
+            exc_info=True,
+        )
+        await callback.answer(
+            "❌ Ошибка создания заказов. Попробуйте позже.",
+            show_alert=True,
+        )
+        await state.clear()
+
+
+@router.callback_query(CheckoutStates.CONFIRM, F.data == "checkout_cancel")
+async def cancel_from_confirmation_checkout(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Отменить заказ на этапе подтверждения checkout.
+
+    Args:
+        callback: CallbackQuery
+        state: FSM контекст
+    """
+    await state.clear()
+
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🛒 Вернуться в корзину", callback_data="cart_view")
+    )
+    builder.row(
+        InlineKeyboardButton(text="📦 Продолжить покупки", callback_data="catalog")
+    )
+
+    text = (
+        "❌ <b>Заказ отменён</b>\n\n"
+        "Ваша корзина сохранена."
+    )
+
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+    await callback.answer()
+    logger.info("Checkout cancelled at confirmation", user_id=callback.from_user.id)
