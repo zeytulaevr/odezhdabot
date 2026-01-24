@@ -254,8 +254,7 @@ async def show_category_products(
         return
 
     # Показываем первый товар
-    callback.data = f"catalog_product:{category_id}:0"
-    await show_product_detail(callback, session, state)
+    await show_product_detail(callback, session, state, category_id=category_id, product_index=0)
 
 
 @router.callback_query(F.data.startswith("catalog_product:"))
@@ -263,6 +262,8 @@ async def show_product_detail(
     callback: CallbackQuery,
     session: AsyncSession,
     state: FSMContext,
+    category_id: int | None = None,
+    product_index: int | None = None,
 ) -> None:
     """Показать детали товара с фото.
 
@@ -270,10 +271,14 @@ async def show_product_detail(
         callback: CallbackQuery
         session: Сессия БД
         state: FSM контекст
+        category_id: ID категории (если не передан, берется из callback.data)
+        product_index: Индекс товара (если не передан, берется из callback.data)
     """
-    parts = callback.data.split(":")
-    category_id = int(parts[1])
-    product_index = int(parts[2])
+    # Если параметры не переданы, парсим из callback.data
+    if category_id is None or product_index is None:
+        parts = callback.data.split(":")
+        category_id = int(parts[1])
+        product_index = int(parts[2])
 
     # Получаем товары категории
     product_service = ProductService(session)
