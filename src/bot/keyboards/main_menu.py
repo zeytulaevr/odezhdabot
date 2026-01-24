@@ -7,8 +7,15 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # =======================
 # Главное меню пользователя
 # =======================
-def get_user_menu() -> InlineKeyboardMarkup:
-    """Главное меню для обычного пользователя (inline)."""
+def get_user_menu(cart_items_count: int = 0) -> InlineKeyboardMarkup:
+    """Главное меню для обычного пользователя (inline).
+
+    Args:
+        cart_items_count: Количество товаров в корзине
+
+    Returns:
+        Inline клавиатура
+    """
     builder = InlineKeyboardBuilder()
 
     # Первый ряд
@@ -17,7 +24,16 @@ def get_user_menu() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🛍 Мои заказы", callback_data="my_orders"),
     )
 
-    # Второй ряд
+    # Второй ряд - Корзина
+    cart_text = "🛒 Корзина"
+    if cart_items_count > 0:
+        cart_text += f" ({cart_items_count})"
+
+    builder.row(
+        InlineKeyboardButton(text=cart_text, callback_data="cart_view"),
+    )
+
+    # Третий ряд
     builder.row(
         InlineKeyboardButton(text="ℹ️ Помощь", callback_data="user:help"),
     )

@@ -278,21 +278,20 @@ async def process_quantity_selection(
     callback: CallbackQuery,
     state: FSMContext,
 ) -> None:
-    """Обработка выбора количества - запрос контакта.
+    """Обработка выбора количества - показ кнопки добавления в корзину.
 
     Args:
         callback: CallbackQuery
         state: FSM контекст
     """
+    from src.bot.keyboards.cart import get_add_to_cart_keyboard
+
     parts = callback.data.split(":")
     product_id = int(parts[1])
     size = parts[2]
     quantity = int(parts[3])
     # Цвет может быть передан как 5-й параметр
     color_from_callback = parts[4] if len(parts) > 4 else None
-
-    # Обновляем данные
-    await state.update_data(quantity=quantity)
 
     # Сохраняем цвет если он был передан
     if color_from_callback:
@@ -304,7 +303,7 @@ async def process_quantity_selection(
     color = data.get("color") or color_from_callback
 
     text = (
-        f"🛒 <b>Оформление заказа</b>\n\n"
+        f"✅ <b>Готово к добавлению</b>\n\n"
         f"📦 Товар: {product_name}\n"
         f"💰 Цена: {product_price}\n"
     )
@@ -315,21 +314,16 @@ async def process_quantity_selection(
     text += (
         f"📏 Размер: {size.upper()}\n"
         f"🔢 Количество: {quantity} шт.\n\n"
-        f"Теперь поделитесь вашим контактом для связи:\n"
-        f"• Нажмите кнопку ниже чтобы поделиться номером телефона\n"
-        f"• Или введите контакт вручную (телефон, username, email)"
+        f"Добавить этот товар в корзину?"
     )
 
-    keyboard = get_contact_request_keyboard()
+    keyboard = get_add_to_cart_keyboard(product_id, size, quantity, color)
 
-    await callback.message.delete()
-    await callback.message.answer(
+    await callback.message.edit_text(
         text=text,
         reply_markup=keyboard,
         parse_mode="HTML",
     )
-
-    await state.set_state(OrderStates.ENTER_CONTACT)
     await callback.answer()
 
     logger.info(

@@ -10,6 +10,7 @@ from src.core.constants import UserRole
 from src.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from src.database.models.cart import Cart
     from src.database.models.order import Order
     from src.database.models.review import Review
 
@@ -74,6 +75,10 @@ class User(Base, TimestampMixin):
     )
 
     # Relationships
+    cart: Mapped["Cart | None"] = relationship(
+        "Cart", back_populates="user", uselist=False, lazy="selectin", cascade="all, delete-orphan"
+    )
+
     orders: Mapped[list["Order"]] = relationship(
         "Order", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
     )
