@@ -89,26 +89,34 @@ def get_quantity_selection_keyboard(product_id: int, size: str, color: str | Non
     """
     builder = InlineKeyboardBuilder()
 
-    # Кнопки с количеством (1-5)
-    row1 = []
-    row2 = []
-    for i in range(1, 6):
+    # Кнопки с количеством (1-3)
+    row = []
+    for i in range(1, 4):
         # Формируем callback_data с учетом цвета
         callback_data = f"order_quantity:{product_id}:{size}:{i}"
         if color:
             callback_data += f":{color}"
 
-        button = InlineKeyboardButton(
-            text=f"{i} шт.",
-            callback_data=callback_data,
+        row.append(
+            InlineKeyboardButton(
+                text=f"{i} шт.",
+                callback_data=callback_data,
+            )
         )
-        if i <= 3:
-            row1.append(button)
-        else:
-            row2.append(button)
 
-    builder.row(*row1)
-    builder.row(*row2)
+    builder.row(*row)
+
+    # Кнопка ручного ввода количества
+    manual_callback_data = f"order_quantity_manual:{product_id}:{size}"
+    if color:
+        manual_callback_data += f":{color}"
+
+    builder.row(
+        InlineKeyboardButton(
+            text="✏️ Ввести количество вручную",
+            callback_data=manual_callback_data,
+        )
+    )
 
     builder.row(
         InlineKeyboardButton(text="◀️ Назад", callback_data="back")

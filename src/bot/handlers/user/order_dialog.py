@@ -34,6 +34,7 @@ class OrderStates(StatesGroup):
     SELECT_COLOR = State()
     SELECT_SIZE = State()
     SELECT_QUANTITY = State()
+    ENTER_QUANTITY_MANUAL = State()
     ENTER_CONTACT = State()
     CONFIRM = State()
 
@@ -329,6 +330,142 @@ async def process_quantity_selection(
     logger.info(
         "Quantity selected",
         user_id=callback.from_user.id,
+        product_id=product_id,
+        size=size,
+        quantity=quantity,
+        color=color,
+    )
+
+
+@router.callback_query(OrderStates.SELECT_QUANTITY, F.data.startswith("order_quantity_manual:"))
+async def process_quantity_manual_request(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Обработка запроса ручного ввода количества.
+
+    Args:
+        callback: CallbackQuery
+        state: FSM контекст
+    """
+    parts = callback.data.split(":")
+    product_id = int(parts[1])
+    size = parts[2]
+    # Цвет может быть передан как 4-й параметр
+    color = parts[3] if len(parts) > 3 else None
+
+    # Сохраняем данные для следующего шага
+    await state.update_data(
+        manual_product_id=product_id,
+        manual_size=size,
+        manual_color=color,
+    )
+
+    text = (
+        f"✏️ <b>Введите количество товара</b>\n\n"
+        f"Введите число от 1 до 9.\n\n"
+        f"❗️ <i>Примечание:</i> Для заказа от 10 штук и более, "
+        f"пожалуйста, свяжитесь с администрацией напрямую."
+    )
+
+    await callback.message.edit_text(
+        text=text,
+        parse_mode="HTML",
+    )
+    await state.set_state(OrderStates.ENTER_QUANTITY_MANUAL)
+    await callback.answer()
+
+    logger.info(
+        "Manual quantity input requested",
+        user_id=callback.from_user.id,
+        product_id=product_id,
+        size=size,
+        color=color,
+    )
+
+
+@router.message(OrderStates.ENTER_QUANTITY_MANUAL, F.text)
+async def process_quantity_manual_input(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    """Обработка ручного ввода количества.
+
+    Args:
+        message: Message с текстом
+        state: FSM контекст
+    """
+    from src.bot.keyboards.cart import get_add_to_cart_keyboard
+
+    text = message.text.strip()
+
+    # Валидация: проверяем что это число
+    if not text.isdigit():
+        await message.answer(
+            "❌ Ошибка! Пожалуйста, введите число.\n\n"
+            "Например: 1, 2, 3, 4, 5, 6, 7, 8, 9"
+        )
+        return
+
+    quantity = int(text)
+
+    # Валидация: отрицательные числа
+    if quantity < 1:
+        await message.answer(
+            "❌ Ошибка! Количество должно быть больше нуля.\n\n"
+            "Пожалуйста, введите число от 1 до 9."
+        )
+        return
+
+    # Валидация: слишком большое количество
+    if quantity >= 10:
+        await message.answer(
+            "⚠️ <b>Большой заказ</b>\n\n"
+            "Для заказа от 10 штук и более, пожалуйста, "
+            "свяжитесь с администрацией напрямую.\n\n"
+            "📞 Контакт администрации можно узнать в разделе 'Помощь'.",
+            parse_mode="HTML",
+        )
+        return
+
+    # Получаем сохраненные данные
+    data = await state.get_data()
+    product_id = data.get("manual_product_id")
+    size = data.get("manual_size")
+    color = data.get("manual_color")
+    product_name = data.get("product_name", "Товар")
+    product_price = data.get("product_price", "—")
+
+    # Формируем текст подтверждения
+    text = (
+        f"✅ <b>Готово к добавлению</b>\n\n"
+        f"📦 Товар: {product_name}\n"
+        f"💰 Цена: {product_price}\n"
+    )
+
+    if color:
+        text += f"🎨 Цвет: {color}\n"
+
+    text += (
+        f"📏 Размер: {size.upper()}\n"
+        f"🔢 Количество: {quantity} шт.\n\n"
+        f"Добавить этот товар в корзину?"
+    )
+
+    keyboard = get_add_to_cart_keyboard(product_id, size, quantity, color)
+
+    await message.answer(
+        text=text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+    # Возвращаемся к состоянию выбора количества
+    await state.set_state(OrderStates.SELECT_QUANTITY)
+
+    logger.info(
+        "Manual quantity entered",
+        user_id=message.from_user.id,
         product_id=product_id,
         size=size,
         quantity=quantity,

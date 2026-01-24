@@ -49,29 +49,27 @@ class NotificationService:
             return 0
 
         # Формируем текст уведомления
-        product_name = order.product.name if order.product else "Неизвестный товар"
-        product_price = order.product.formatted_price if order.product else "—"
-
         text = (
             f"🆕 <b>Новый заказ #{order.id}</b>\n\n"
             f"👤 Клиент: {order.user.full_name}\n"
-            f"📦 Товар: {product_name}\n"
-            f"💰 Цена: {product_price}\n"
-            f"📏 Размер: {order.size.upper()}\n"
-        )
-
-        # Добавляем цвет, если он указан
-        if order.color:
-            text += f"🎨 Цвет: {order.color}\n"
-
-        # Добавляем количество
-        text += f"🔢 Количество: {order.quantity} шт.\n"
-
-        text += (
             f"📞 Контакт: {order.customer_contact}\n"
             f"🕐 Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-            f"Для обработки заказа используйте команду /admin"
         )
+
+        # Добавляем информацию о товарах
+        text += f"📦 <b>Товары в заказе ({order.total_items} шт.):</b>\n\n"
+
+        for i, item in enumerate(order.items, 1):
+            text += f"{i}. {item.product_name}\n"
+            text += f"   📏 Размер: {item.size.upper()}\n"
+            if item.color:
+                text += f"   🎨 Цвет: {item.color}\n"
+            text += f"   🔢 Количество: {item.quantity} шт.\n"
+            text += f"   💰 Цена: {item.price_at_order:,.2f} ₽\n"
+            text += f"   💵 Сумма: {item.total_price:,.2f} ₽\n\n"
+
+        text += f"💰 <b>Итого: {order.total_price:,.2f} ₽</b>\n\n"
+        text += "Для обработки заказа используйте команду /admin"
 
         success_count = 0
 
@@ -117,26 +115,26 @@ class NotificationService:
         Returns:
             True при успехе
         """
-        product_name = order.product.name if order.product else "Неизвестный товар"
-        product_price = order.product.formatted_price if order.product else "—"
-
         text = (
             f"✅ <b>Ваш заказ принят!</b>\n\n"
-            f"📋 Номер заказа: <code>#{order.id}</code>\n"
-            f"📦 Товар: {product_name}\n"
-            f"💰 Цена: {product_price}\n"
-            f"📏 Размер: {order.size.upper()}\n"
+            f"📋 Номер заказа: <code>#{order.id}</code>\n\n"
         )
 
-        # Добавляем цвет, если он указан
-        if order.color:
-            text += f"🎨 Цвет: {order.color}\n"
+        # Добавляем информацию о товарах
+        text += f"📦 <b>Товары в заказе ({order.total_items} шт.):</b>\n\n"
 
-        # Добавляем количество
-        text += f"🔢 Количество: {order.quantity} шт.\n"
+        for i, item in enumerate(order.items, 1):
+            text += f"{i}. {item.product_name}\n"
+            text += f"   📏 Размер: {item.size.upper()}\n"
+            if item.color:
+                text += f"   🎨 Цвет: {item.color}\n"
+            text += f"   🔢 Количество: {item.quantity} шт.\n"
+            text += f"   💰 Цена: {item.price_at_order:,.2f} ₽\n"
+            text += f"   💵 Сумма: {item.total_price:,.2f} ₽\n\n"
 
+        text += f"💰 <b>Итого: {order.total_price:,.2f} ₽</b>\n\n"
         text += (
-            f"\nМы свяжемся с вами в ближайшее время.\n"
+            f"Мы свяжемся с вами в ближайшее время.\n"
             f"Следите за статусом заказа в разделе 'Мои заказы'."
         )
 
@@ -181,19 +179,9 @@ class NotificationService:
         text = (
             f"{status_emoji} <b>Статус заказа изменён</b>\n\n"
             f"📋 Заказ: <code>#{order.id}</code>\n"
-            f"📦 Товар: {order.product.name if order.product else 'Неизвестный товар'}\n"
-            f"📏 Размер: {order.size.upper()}\n"
-        )
-
-        # Добавляем цвет, если он указан
-        if order.color:
-            text += f"🎨 Цвет: {order.color}\n"
-
-        # Добавляем количество
-        text += f"🔢 Количество: {order.quantity} шт.\n"
-
-        text += (
-            f"\nСтарый статус: {old_status_name}\n"
+            f"📦 Товаров: {order.total_items} шт.\n"
+            f"💰 Сумма: {order.total_price:,.2f} ₽\n\n"
+            f"Старый статус: {old_status_name}\n"
             f"<b>Новый статус: {status_name}</b>\n"
         )
 

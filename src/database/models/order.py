@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import BigInteger, Decimal, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base, TimestampMixin
@@ -12,29 +12,27 @@ if TYPE_CHECKING:
     from src.database.models.user import User
 
 
-class Order(Base, TimestampMixin):
-    """Модель заказа (один товар = один заказ)."""
+class OrderItem(Base, TimestampMixin):
+    """Модель товара в заказе."""
 
-    __tablename__ = "orders"
+    __tablename__ = "order_items"
     __table_args__ = (
-        Index("ix_orders_user_id", "user_id"),
-        Index("ix_orders_product_id", "product_id"),
-        Index("ix_orders_status", "status"),
-        Index("ix_orders_created_at", "created_at"),
-        {"comment": "Заказы пользователей"},
+        Index("ix_order_items_order_id", "order_id"),
+        Index("ix_order_items_product_id", "product_id"),
+        {"comment": "Товары в заказах"},
     )
 
     # Первичный ключ
     id: Mapped[int] = mapped_column(
-        Integer, primary_key=True, autoincrement=True, comment="ID заказа"
+        Integer, primary_key=True, autoincrement=True, comment="ID товара в заказе"
     )
 
-    # ID пользователя
-    user_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("users.id", ondelete="CASCADE"),
+    # ID заказа
+    order_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("orders.id", ondelete="CASCADE"),
         nullable=False,
-        comment="ID пользователя",
+        comment="ID заказа",
     )
 
     # ID товара
@@ -60,6 +58,58 @@ class Order(Base, TimestampMixin):
         Integer, nullable=False, default=1, comment="Количество товара"
     )
 
+    # Цена на момент заказа (сохраняем для истории)
+    price_at_order: Mapped[Decimal] = mapped_column(
+        Decimal(10, 2), nullable=False, comment="Цена товара на момент заказа"
+    )
+
+    # Название товара на момент заказа (на случай удаления товара)
+    product_name: Mapped[str] = mapped_column(
+        String(200), nullable=False, comment="Название товара на момент заказа"
+    )
+
+    # Relationships
+    order: Mapped["Order"] = relationship("Order", back_populates="items")
+    product: Mapped["Product | None"] = relationship("Product", lazy="selectin")
+
+    @property
+    def total_price(self) -> Decimal:
+        """Общая стоимость товара (цена * количество)."""
+        return self.price_at_order * self.quantity
+
+    @property
+    def display_name(self) -> str:
+        """Отображаемое имя товара (с размером и цветом)."""
+        parts = [self.product_name, f"Размер: {self.size}"]
+        if self.color:
+            parts.append(f"Цвет: {self.color}")
+        return " | ".join(parts)
+
+
+class Order(Base, TimestampMixin):
+    """Модель заказа (может содержать несколько товаров)."""
+
+    __tablename__ = "orders"
+    __table_args__ = (
+        Index("ix_orders_user_id", "user_id"),
+        Index("ix_orders_status", "status"),
+        Index("ix_orders_created_at", "created_at"),
+        {"comment": "Заказы пользователей"},
+    )
+
+    # Первичный ключ
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True, comment="ID заказа"
+    )
+
+    # ID пользователя
+    user_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="ID пользователя",
+    )
+
     # Статус заказа: 'new', 'processing', 'paid', 'shipped', 'completed', 'cancelled'
     status: Mapped[str] = mapped_column(
         String(20),
@@ -80,9 +130,8 @@ class Order(Base, TimestampMixin):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="orders", lazy="selectin")
-
-    product: Mapped["Product | None"] = relationship(
-        "Product", back_populates="orders", lazy="selectin"
+    items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
     )
 
     @property
@@ -94,3 +143,13 @@ class Order(Base, TimestampMixin):
     def is_completed(self) -> bool:
         """Завершён ли заказ."""
         return self.status in ["completed", "cancelled"]
+
+    @property
+    def total_price(self) -> Decimal:
+        """Общая стоимость заказа."""
+        return sum(item.total_price for item in self.items)
+
+    @property
+    def total_items(self) -> int:
+        """Общее количество товаров в заказе."""
+        return sum(item.quantity for item in self.items)

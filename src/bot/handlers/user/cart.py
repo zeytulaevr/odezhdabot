@@ -665,38 +665,44 @@ async def confirm_and_create_orders(
         await state.clear()
         return
 
-    # Создаем заказы для каждого товара в корзине
+    # Создаем ОДИН заказ с несколькими товарами
     order_service = OrderService(session)
-    created_orders = []
 
     try:
-        for item in cart_items:
-            order = await order_service.create_order(
-                user_id=user.id,
-                product_id=item.product_id,
-                size=item.size,
-                customer_contact=contact,
-                color=item.color,
-                quantity=item.quantity,
-            )
-            created_orders.append(order)
+        # Подготавливаем данные товаров для заказа
+        items_data = [
+            {
+                "product_id": item.product_id,
+                "size": item.size,
+                "color": item.color,
+                "quantity": item.quantity,
+            }
+            for item in cart_items
+        ]
+
+        # Создаем один заказ со всеми товарами
+        order = await order_service.create_order_with_items(
+            user_id=user.id,
+            customer_contact=contact,
+            items=items_data,
+        )
 
         await session.commit()
 
-        # Уведомляем пользователя о каждом заказе
-        for order in created_orders:
-            await NotificationService.notify_user_order_created(callback.bot, order)
-            # Уведомляем админов
-            await NotificationService.notify_admins_new_order(callback.bot, order)
+        # Уведомляем пользователя о заказе
+        await NotificationService.notify_user_order_created(callback.bot, order)
+        # Уведомляем админов
+        await NotificationService.notify_admins_new_order(callback.bot, order)
 
         # Очищаем корзину после успешного оформления
         await cart_service.clear_cart(user.id)
         await session.commit()
 
         text = (
-            f"✅ <b>Заказы оформлены!</b>\n\n"
-            f"📋 Создано заказов: {len(created_orders)}\n"
-            f"📋 Номера заказов: {', '.join(f'#{o.id}' for o in created_orders)}\n\n"
+            f"✅ <b>Заказ оформлен!</b>\n\n"
+            f"📋 Номер заказа: #{order.id}\n"
+            f"📦 Товаров в заказе: {order.total_items}\n"
+            f"💰 Общая сумма: {order.total_price:,.2f} ₽\n\n"
             f"Мы свяжемся с вами в ближайшее время.\n"
             f"Следите за статусом в разделе 'Мои заказы'."
         )
@@ -708,13 +714,13 @@ async def confirm_and_create_orders(
         )
 
         await state.clear()
-        await callback.answer("✅ Заказы созданы!")
+        await callback.answer("✅ Заказ создан!")
 
         logger.info(
-            "Orders created from cart",
+            "Order created from cart",
             user_id=user.id,
-            orders_count=len(created_orders),
-            order_ids=[o.id for o in created_orders],
+            order_id=order.id,
+            items_count=order.total_items,
         )
 
     except Exception as e:
