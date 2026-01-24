@@ -11,8 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.bot.keyboards.orders import (
     get_color_selection_keyboard,
     get_size_selection_keyboard,
+    get_quantity_selection_keyboard,
     get_contact_request_keyboard,
     get_order_confirmation_keyboard,
+    get_order_completed_keyboard,
 )
 from src.core.logging import get_logger
 from src.database.models.user import User
@@ -31,6 +33,7 @@ class OrderStates(StatesGroup):
 
     SELECT_COLOR = State()
     SELECT_SIZE = State()
+    SELECT_QUANTITY = State()
     ENTER_CONTACT = State()
     CONFIRM = State()
 
@@ -227,6 +230,10 @@ async def process_size_selection(
     # Обновляем данные
     await state.update_data(size=size)
 
+    # Сохраняем цвет если он был передан
+    if color_from_callback:
+        await state.update_data(color=color_from_callback)
+
     data = await state.get_data()
     product_name = data.get("product_name", "Товар")
     product_price = data.get("product_price", "—")
@@ -243,6 +250,71 @@ async def process_size_selection(
 
     text += (
         f"📏 Размер: {size.upper()}\n\n"
+        f"Выберите количество:"
+    )
+
+    keyboard = get_quantity_selection_keyboard(product_id, size, color)
+
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+    await state.set_state(OrderStates.SELECT_QUANTITY)
+    await callback.answer()
+
+    logger.info(
+        "Size selected",
+        user_id=callback.from_user.id,
+        product_id=product_id,
+        size=size,
+        color=color,
+    )
+
+
+@router.callback_query(OrderStates.SELECT_QUANTITY, F.data.startswith("order_quantity:"))
+async def process_quantity_selection(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Обработка выбора количества - запрос контакта.
+
+    Args:
+        callback: CallbackQuery
+        state: FSM контекст
+    """
+    parts = callback.data.split(":")
+    product_id = int(parts[1])
+    size = parts[2]
+    quantity = int(parts[3])
+    # Цвет может быть передан как 5-й параметр
+    color_from_callback = parts[4] if len(parts) > 4 else None
+
+    # Обновляем данные
+    await state.update_data(quantity=quantity)
+
+    # Сохраняем цвет если он был передан
+    if color_from_callback:
+        await state.update_data(color=color_from_callback)
+
+    data = await state.get_data()
+    product_name = data.get("product_name", "Товар")
+    product_price = data.get("product_price", "—")
+    color = data.get("color") or color_from_callback
+
+    text = (
+        f"🛒 <b>Оформление заказа</b>\n\n"
+        f"📦 Товар: {product_name}\n"
+        f"💰 Цена: {product_price}\n"
+    )
+
+    if color:
+        text += f"🎨 Цвет: {color}\n"
+
+    text += (
+        f"📏 Размер: {size.upper()}\n"
+        f"🔢 Количество: {quantity} шт.\n\n"
         f"Теперь поделитесь вашим контактом для связи:\n"
         f"• Нажмите кнопку ниже чтобы поделиться номером телефона\n"
         f"• Или введите контакт вручную (телефон, username, email)"
@@ -261,10 +333,11 @@ async def process_size_selection(
     await callback.answer()
 
     logger.info(
-        "Size selected",
+        "Quantity selected",
         user_id=callback.from_user.id,
         product_id=product_id,
         size=size,
+        quantity=quantity,
         color=color,
     )
 
@@ -391,6 +464,7 @@ async def show_order_confirmation(
     product_id = data.get("product_id")
     size = data.get("size", "—")
     color = data.get("color")
+    quantity = data.get("quantity", 1)
     contact = data.get("customer_contact", "—")
 
     text = (
@@ -405,6 +479,7 @@ async def show_order_confirmation(
 
     text += (
         f"📏 Размер: {size.upper()}\n"
+        f"🔢 Количество: {quantity} шт.\n"
         f"📞 Контакт: {contact}\n\n"
         f"Все верно?"
     )
@@ -443,6 +518,7 @@ async def confirm_and_create_order(
     product_id = data.get("product_id")
     size = data.get("size")
     color = data.get("color")
+    quantity = data.get("quantity", 1)
     contact = data.get("customer_contact")
 
     if not all([product_id, size, contact]):
@@ -460,6 +536,7 @@ async def confirm_and_create_order(
             size=size,
             customer_contact=contact,
             color=color,
+            quantity=quantity,
         )
 
         await session.commit()
@@ -479,6 +556,7 @@ async def confirm_and_create_order(
 
         await callback.message.edit_text(
             text=text,
+            reply_markup=get_order_completed_keyboard(),
             parse_mode="HTML",
         )
 
@@ -523,8 +601,21 @@ async def cancel_from_confirmation(
         "Вы можете продолжить просмотр каталога."
     )
 
+    # Используем клавиатуру с вариантами действий
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="📦 Каталог", callback_data="catalog")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_menu")
+    )
+
     await callback.message.edit_text(
         text=text,
+        reply_markup=builder.as_markup(),
         parse_mode="HTML",
     )
 

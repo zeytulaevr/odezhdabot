@@ -64,6 +64,9 @@ class NotificationService:
         if order.color:
             text += f"🎨 Цвет: {order.color}\n"
 
+        # Добавляем количество
+        text += f"🔢 Количество: {order.quantity} шт.\n"
+
         text += (
             f"📞 Контакт: {order.customer_contact}\n"
             f"🕐 Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
@@ -129,6 +132,9 @@ class NotificationService:
         if order.color:
             text += f"🎨 Цвет: {order.color}\n"
 
+        # Добавляем количество
+        text += f"🔢 Количество: {order.quantity} шт.\n"
+
         text += (
             f"\nМы свяжемся с вами в ближайшее время.\n"
             f"Следите за статусом заказа в разделе 'Мои заказы'."
@@ -182,6 +188,9 @@ class NotificationService:
         # Добавляем цвет, если он указан
         if order.color:
             text += f"🎨 Цвет: {order.color}\n"
+
+        # Добавляем количество
+        text += f"🔢 Количество: {order.quantity} шт.\n"
 
         text += (
             f"\nСтарый статус: {old_status_name}\n"

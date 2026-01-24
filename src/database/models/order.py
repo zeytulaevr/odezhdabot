@@ -55,6 +55,11 @@ class Order(Base, TimestampMixin):
         String(50), nullable=True, comment="Выбранный цвет товара"
     )
 
+    # Количество товара
+    quantity: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Количество товара"
+    )
+
     # Статус заказа: 'new', 'processing', 'paid', 'shipped', 'completed', 'cancelled'
     status: Mapped[str] = mapped_column(
         String(20),

@@ -76,6 +76,47 @@ def get_size_selection_keyboard(product_id: int, sizes: list[str], fit: str | No
     return builder.as_markup()
 
 
+def get_quantity_selection_keyboard(product_id: int, size: str, color: str | None = None) -> InlineKeyboardMarkup:
+    """Клавиатура выбора количества товара.
+
+    Args:
+        product_id: ID товара
+        size: Выбранный размер
+        color: Выбранный цвет (опционально)
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    # Кнопки с количеством (1-5)
+    row1 = []
+    row2 = []
+    for i in range(1, 6):
+        # Формируем callback_data с учетом цвета
+        callback_data = f"order_quantity:{product_id}:{size}:{i}"
+        if color:
+            callback_data += f":{color}"
+
+        button = InlineKeyboardButton(
+            text=f"{i} шт.",
+            callback_data=callback_data,
+        )
+        if i <= 3:
+            row1.append(button)
+        else:
+            row2.append(button)
+
+    builder.row(*row1)
+    builder.row(*row2)
+
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back")
+    )
+
+    return builder.as_markup()
+
+
 def get_contact_request_keyboard() -> ReplyKeyboardMarkup:
     """Клавиатура запроса контакта.
 
@@ -119,6 +160,36 @@ def get_order_confirmation_keyboard(product_id: int, size: str) -> InlineKeyboar
         InlineKeyboardButton(
             text="❌ Отменить",
             callback_data="order_cancel",
+        )
+    )
+
+    return builder.as_markup()
+
+
+def get_order_completed_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура после успешного оформления заказа.
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🛒 Заказать еще",
+            callback_data="catalog",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="📋 Мои заказы",
+            callback_data="my_orders",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="🏠 Главное меню",
+            callback_data="back_to_menu",
         )
     )
 
