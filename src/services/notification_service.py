@@ -58,6 +58,13 @@ class NotificationService:
             f"📦 Товар: {product_name}\n"
             f"💰 Цена: {product_price}\n"
             f"📏 Размер: {order.size.upper()}\n"
+        )
+
+        # Добавляем цвет, если он указан
+        if order.color:
+            text += f"🎨 Цвет: {order.color}\n"
+
+        text += (
             f"📞 Контакт: {order.customer_contact}\n"
             f"🕐 Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
             f"Для обработки заказа используйте команду /admin"
@@ -115,8 +122,15 @@ class NotificationService:
             f"📋 Номер заказа: <code>#{order.id}</code>\n"
             f"📦 Товар: {product_name}\n"
             f"💰 Цена: {product_price}\n"
-            f"📏 Размер: {order.size.upper()}\n\n"
-            f"Мы свяжемся с вами в ближайшее время.\n"
+            f"📏 Размер: {order.size.upper()}\n"
+        )
+
+        # Добавляем цвет, если он указан
+        if order.color:
+            text += f"🎨 Цвет: {order.color}\n"
+
+        text += (
+            f"\nМы свяжемся с вами в ближайшее время.\n"
             f"Следите за статусом заказа в разделе 'Мои заказы'."
         )
 
@@ -162,8 +176,15 @@ class NotificationService:
             f"{status_emoji} <b>Статус заказа изменён</b>\n\n"
             f"📋 Заказ: <code>#{order.id}</code>\n"
             f"📦 Товар: {order.product.name if order.product else 'Неизвестный товар'}\n"
-            f"📏 Размер: {order.size.upper()}\n\n"
-            f"Старый статус: {old_status_name}\n"
+            f"📏 Размер: {order.size.upper()}\n"
+        )
+
+        # Добавляем цвет, если он указан
+        if order.color:
+            text += f"🎨 Цвет: {order.color}\n"
+
+        text += (
+            f"\nСтарый статус: {old_status_name}\n"
             f"<b>Новый статус: {status_name}</b>\n"
         )
 
