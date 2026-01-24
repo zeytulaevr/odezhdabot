@@ -9,7 +9,7 @@ from src.database.models.cart import CartItem
 def get_add_to_cart_keyboard(
     product_id: int, size: str, quantity: int, color: str | None = None
 ) -> InlineKeyboardMarkup:
-    """Клавиатура добавления товара в корзину.
+    """Клавиатура выбора действия после конфигурации товара.
 
     Args:
         product_id: ID товара
@@ -23,20 +23,33 @@ def get_add_to_cart_keyboard(
     builder = InlineKeyboardBuilder()
 
     # Формируем callback_data с учетом цвета
-    callback_data = f"cart_add:{product_id}:{size}:{quantity}"
+    add_cart_data = f"cart_add:{product_id}:{size}:{quantity}"
+    quick_order_data = f"quick_order:{product_id}:{size}:{quantity}"
     if color:
-        callback_data += f":{color}"
+        add_cart_data += f":{color}"
+        quick_order_data += f":{color}"
 
+    # Первый ряд - Заказать сразу
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Заказать сразу",
+            callback_data=quick_order_data,
+        )
+    )
+
+    # Второй ряд - Добавить в корзину
     builder.row(
         InlineKeyboardButton(
             text="🛒 Добавить в корзину",
-            callback_data=callback_data,
+            callback_data=add_cart_data,
         )
     )
+
+    # Третий ряд - Продолжить покупки
     builder.row(
         InlineKeyboardButton(
-            text="◀️ Назад",
-            callback_data="back",
+            text="📦 Продолжить покупки",
+            callback_data="catalog",
         )
     )
 
