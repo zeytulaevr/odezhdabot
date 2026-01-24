@@ -103,24 +103,28 @@ async def start_order(
 
     async def safe_edit_or_send():
         """Пытаемся редактировать сообщение, если не получится — отправляем новое"""
-        try:
-            # Если сообщение с фото, удаляем и отправляем новое
-            if callback.message.photo:
-                await callback.message.delete()
-                raise TelegramBadRequest("Удаляем сообщение с фото — отправляем новое")
-
-            await callback.message.edit_text(
-                text=text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        except TelegramBadRequest:
-            # fallback: новое сообщение
+        # Если сообщение с фото, удаляем и отправляем новое
+        if callback.message.photo:
+            await callback.message.delete()
             await callback.message.answer(
                 text=text,
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )
+        else:
+            try:
+                await callback.message.edit_text(
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+            except TelegramBadRequest:
+                # fallback: новое сообщение
+                await callback.message.answer(
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
 
     await safe_edit_or_send()
     await callback.answer()
