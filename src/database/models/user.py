@@ -1,9 +1,10 @@
 """Модель пользователя."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, Index, String, func
+from sqlalchemy import BigInteger, DateTime, Index, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.constants import UserRole
@@ -72,6 +73,14 @@ class User(Base, TimestampMixin):
         nullable=True,
         server_default=func.now(),
         comment="Дата последней активности пользователя",
+    )
+
+    # Баланс бонусов
+    bonus_balance: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        server_default="0",
+        comment="Баланс бонусов пользователя",
     )
 
     # Relationships
