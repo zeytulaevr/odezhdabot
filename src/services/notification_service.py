@@ -16,9 +16,10 @@ class NotificationService:
     # Эмодзи для статусов
     STATUS_EMOJI = {
         "new": "🆕",
-        "processing": "⏳",
+        "confirmed": "✔️",
         "paid": "💰",
         "shipped": "📦",
+        "delivered": "🚚",
         "completed": "✅",
         "cancelled": "❌",
     }
@@ -26,10 +27,11 @@ class NotificationService:
     # Русские названия статусов
     STATUS_NAMES = {
         "new": "Новый",
-        "processing": "В обработке",
+        "confirmed": "Подтверждён",
         "paid": "Оплачен",
         "shipped": "Отправлен",
-        "completed": "Выполнен",
+        "delivered": "Доставлен",
+        "completed": "Завершён",
         "cancelled": "Отменён",
     }
 

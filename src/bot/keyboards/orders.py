@@ -280,10 +280,11 @@ def get_admin_orders_filters_keyboard(current_filter: str = "all") -> InlineKeyb
     filters = [
         ("📋 Все", "all"),
         ("🆕 Новые", "new"),
-        ("⏳ В обработке", "processing"),
+        ("✔️ Подтверждённые", "confirmed"),
         ("💰 Оплачены", "paid"),
         ("📦 Отправлены", "shipped"),
-        ("✅ Выполнены", "completed"),
+        ("🚚 Доставлены", "delivered"),
+        ("✅ Завершённые", "completed"),
         ("❌ Отменённые", "cancelled"),
     ]
 
@@ -326,10 +327,11 @@ def get_order_actions_keyboard(order_id: int, current_status: str) -> InlineKeyb
 
     # Возможные переходы статусов
     status_transitions = {
-        "new": [("⏳ В обработку", "processing"), ("❌ Отменить", "cancelled")],
-        "processing": [("💰 Оплачен", "paid"), ("❌ Отменить", "cancelled")],
+        "new": [("✔️ Подтвердить", "confirmed"), ("❌ Отменить", "cancelled")],
+        "confirmed": [("💰 Оплачен", "paid"), ("❌ Отменить", "cancelled")],
         "paid": [("📦 Отправлен", "shipped")],
-        "shipped": [("✅ Выполнен", "completed")],
+        "shipped": [("🚚 Доставлен", "delivered")],
+        "delivered": [("✅ Завершён", "completed")],
     }
 
     # Кнопки смены статуса
@@ -341,6 +343,34 @@ def get_order_actions_keyboard(order_id: int, current_status: str) -> InlineKeyb
                     callback_data=f"admin_order_status:{order_id}:{new_status}",
                 )
             )
+
+    # Кнопки для редактирования и общения (если заказ не завершён и не отменён)
+    if current_status not in ["completed", "cancelled"]:
+        # Кнопка редактирования заказа (только для new и confirmed)
+        if current_status in ["new", "confirmed"]:
+            builder.row(
+                InlineKeyboardButton(
+                    text="✏️ Редактировать заказ",
+                    callback_data=f"admin_order_edit:{order_id}",
+                )
+            )
+
+        # Кнопка отправки реквизитов (только для confirmed)
+        if current_status == "confirmed":
+            builder.row(
+                InlineKeyboardButton(
+                    text="💳 Отправить реквизиты",
+                    callback_data=f"admin_order_send_payment:{order_id}",
+                )
+            )
+
+        # Кнопка чата с клиентом
+        builder.row(
+            InlineKeyboardButton(
+                text="💬 Написать клиенту",
+                callback_data=f"admin_order_chat:{order_id}",
+            )
+        )
 
     # Дополнительные действия
     builder.row(

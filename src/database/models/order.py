@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from src.database.models.order_message import OrderMessage
     from src.database.models.product import Product
     from src.database.models.user import User
 
@@ -134,6 +135,9 @@ class Order(Base, TimestampMixin):
     items: Mapped[list["OrderItem"]] = relationship(
         "OrderItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
     )
+    messages: Mapped[list["OrderMessage"]] = relationship(
+        "OrderMessage", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
+    )
 
     @property
     def can_be_cancelled(self) -> bool:
@@ -154,3 +158,22 @@ class Order(Base, TimestampMixin):
     def total_items(self) -> int:
         """Общее количество товаров в заказе."""
         return sum(item.quantity for item in self.items)
+
+    @property
+    def unread_messages_count(self) -> int:
+        """Количество непрочитанных сообщений."""
+        return sum(1 for msg in self.messages if not msg.is_read)
+
+    def get_unread_messages_for_user(self, user_id: int) -> int:
+        """Получить количество непрочитанных сообщений для конкретного пользователя.
+
+        Args:
+            user_id: ID пользователя
+
+        Returns:
+            Количество непрочитанных сообщений от другого участника
+        """
+        return sum(
+            1 for msg in self.messages
+            if not msg.is_read and msg.sender_id != user_id
+        )
