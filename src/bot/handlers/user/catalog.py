@@ -231,10 +231,11 @@ async def show_category_products(
     )
 
     if not products:
-        text = (
-            f"📭 <b>{category.name}</b>\n\n"
-            "В этой категории пока нет товаров."
-        )
+        text = f"📭 <b>{category.name}</b>\n\n"
+        text += "━━━━━━━━━━━━━━━━━━━━\n"
+        text += "В этой категории пока нет товаров.\n"
+        text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        text += "💡 <i>Загляните в другие категории!</i>"
 
         keyboard_builder = __import__('aiogram.utils.keyboard', fromlist=['InlineKeyboardBuilder']).InlineKeyboardBuilder()
         keyboard_builder.row(

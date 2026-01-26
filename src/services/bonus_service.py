@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logging import get_logger
-from src.database.models.bonus_settings import BonusSettings
+from src.database.models.bot_settings import BotSettings
 from src.database.models.bonus_transaction import BonusTransaction
 from src.database.models.order import Order
 from src.database.models.promocode import Promocode
@@ -254,14 +254,14 @@ class BonusService:
         Returns:
             Сумма бонусов для начисления
         """
-        settings = await BonusSettings.get_current_settings(self.session)
+        settings = await BotSettings.get_settings(self.session)
 
         # Проверяем минимальную сумму заказа
-        if order_amount < settings.min_order_amount_for_bonus:
+        if order_amount < settings.bonus_min_order_amount:
             return Decimal("0")
 
         # Рассчитываем бонусы
-        bonus_amount = (order_amount * settings.purchase_bonus_percent) / Decimal("100")
+        bonus_amount = (order_amount * settings.bonus_purchase_percent) / Decimal("100")
 
         # Округляем до 2 знаков после запятой
         return bonus_amount.quantize(Decimal("0.01"))
@@ -325,8 +325,8 @@ class BonusService:
         Returns:
             Максимальная сумма бонусов, которую можно использовать
         """
-        settings = await BonusSettings.get_current_settings(self.session)
+        settings = await BotSettings.get_settings(self.session)
 
-        max_discount = (order_amount * settings.max_bonus_payment_percent) / Decimal("100")
+        max_discount = (order_amount * settings.bonus_max_payment_percent) / Decimal("100")
 
         return max_discount.quantize(Decimal("0.01"))

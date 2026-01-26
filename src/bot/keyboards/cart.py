@@ -29,15 +29,7 @@ def get_add_to_cart_keyboard(
         add_cart_data += f":{color}"
         quick_order_data += f":{color}"
 
-    # Первый ряд - Заказать сразу
-    builder.row(
-        InlineKeyboardButton(
-            text="✅ Заказать сразу",
-            callback_data=quick_order_data,
-        )
-    )
-
-    # Второй ряд - Добавить в корзину
+    # Два логичных варианта: добавить в корзину или заказать сразу
     builder.row(
         InlineKeyboardButton(
             text="🛒 Добавить в корзину",
@@ -45,7 +37,31 @@ def get_add_to_cart_keyboard(
         )
     )
 
-    # Третий ряд - Продолжить покупки
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Заказать сейчас",
+            callback_data=quick_order_data,
+        )
+    )
+
+    return builder.as_markup()
+
+
+def get_cart_added_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура после добавления товара в корзину.
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🛒 Перейти в корзину",
+            callback_data="cart_view",
+        )
+    )
+
     builder.row(
         InlineKeyboardButton(
             text="📦 Продолжить покупки",

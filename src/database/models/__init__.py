@@ -3,6 +3,7 @@
 from src.database.models.admin_log import AdminLog
 from src.database.models.bonus_settings import BonusSettings
 from src.database.models.bonus_transaction import BonusTransaction
+from src.database.models.bot_settings import BotSettings
 from src.database.models.broadcast import Broadcast
 from src.database.models.category import Category
 from src.database.models.moderated_message import ModeratedMessage
@@ -23,6 +24,7 @@ __all__ = [
     "OrderItem",
     "OrderMessage",
     "PaymentSettings",
+    "BotSettings",
     "BonusSettings",
     "BonusTransaction",
     "Promocode",
