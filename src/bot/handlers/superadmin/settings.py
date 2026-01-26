@@ -12,6 +12,7 @@ from src.bot.keyboards.settings import (
     get_bonus_settings_keyboard,
     get_cancel_keyboard,
     get_catalog_settings_keyboard,
+    get_message_input_keyboard,
     get_notification_settings_keyboard,
     get_order_settings_keyboard,
     get_payment_settings_keyboard,
@@ -25,6 +26,28 @@ from src.database.models.user import User
 logger = get_logger(__name__)
 
 router = Router(name="settings")
+
+
+# Обработчик отмены для всех FSM состояний
+@router.callback_query(F.data == "settings:cancel", IsSuperAdmin())
+async def handle_cancel_button(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Обработка кнопки отмены во время ввода."""
+    await state.clear()
+    text = (
+        "⚙️ <b>Настройки бота</b>\n\n"
+        "Выберите раздел для настройки:"
+    )
+    keyboard = get_settings_menu_keyboard()
+    if callback.message:
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+    await callback.answer("❌ Отменено")
 
 
 @router.callback_query(F.data.startswith("settings:"), IsSuperAdmin())
@@ -129,21 +152,49 @@ async def process_settings_callback(
         await callback.answer()
         return
 
-    # Отмена ввода
-    if section == "cancel":
+    # Завершение ввода сообщения с медиа
+    if section == "message_done":
+        # Получаем данные из state
+        data = await state.get_data()
+        message_text = data.get("message_text")
+        message_media = data.get("message_media")
+        settings_section = data.get("settings_section")
+        message_type = data.get("message_type")
+
+        if not message_text:
+            await callback.answer("⚠️ Сначала отправьте текст сообщения", show_alert=True)
+            return
+
+        # Сохраняем в БД
+        settings = await BotSettings.get_settings(session)
+
+        if message_type == "welcome":
+            settings.welcome_message = message_text
+            settings.welcome_message_media = message_media
+            success_msg = "✅ Приветственное сообщение обновлено"
+        elif message_type == "help":
+            settings.help_message = message_text
+            settings.help_message_media = message_media
+            success_msg = "✅ Сообщение помощи обновлено"
+        elif message_type == "large_order":
+            settings.large_order_message = message_text
+            settings.large_order_message_media = message_media
+            success_msg = "✅ Сообщение о большом заказе обновлено"
+
+        await session.commit()
         await state.clear()
-        text = (
-            "⚙️ <b>Настройки бота</b>\n\n"
-            "Выберите раздел для настройки:"
-        )
-        keyboard = get_settings_menu_keyboard()
+
+        # Показываем меню уведомлений
+        text = f"{success_msg}\n\nВыберите другой параметр для изменения:"
+        keyboard = get_notification_settings_keyboard()
+
         if callback.message:
             await callback.message.edit_text(
                 text=text,
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )
-        await callback.answer("❌ Отменено")
+        await callback.answer(success_msg)
         return
 
     # Обработка конкретных настроек
@@ -255,27 +306,43 @@ async def process_settings_callback(
     elif section == "notifications":
         if subsection == "welcome":
             await state.set_state(SettingsStates.ENTER_WELCOME_MESSAGE)
+            await state.update_data(message_type="welcome")
             current = settings.welcome_message or "Не задано"
+            has_media = "Да" if settings.welcome_message_media else "Нет"
             text = (
                 "👋 <b>Приветственное сообщение</b>\n\n"
-                f"Текущее сообщение:\n<code>{current}</code>\n\n"
-                "Введите новое приветственное сообщение:"
+                f"📝 Текущий текст:\n<code>{current}</code>\n"
+                f"🖼 Медиа: {has_media}\n\n"
+                "📤 Отправьте новый текст сообщения\n"
+                "📷 Можете прикрепить фото или видео\n\n"
+                "Когда закончите, нажмите <b>✅ Готово</b>"
             )
         elif subsection == "help":
             await state.set_state(SettingsStates.ENTER_HELP_MESSAGE)
+            await state.update_data(message_type="help")
             current = settings.help_message or "Не задано"
+            has_media = "Да" if settings.help_message_media else "Нет"
             text = (
                 "ℹ️ <b>Сообщение помощи</b>\n\n"
-                f"Текущее сообщение:\n<code>{current}</code>\n\n"
-                "Введите новое сообщение помощи:"
+                f"📝 Текущий текст:\n<code>{current}</code>\n"
+                f"🖼 Медиа: {has_media}\n\n"
+                "📤 Отправьте новый текст сообщения\n"
+                "📷 Можете прикрепить фото или видео\n\n"
+                "Когда закончите, нажмите <b>✅ Готово</b>"
             )
         elif subsection == "large_order":
             await state.set_state(SettingsStates.ENTER_LARGE_ORDER_MESSAGE)
+            await state.update_data(message_type="large_order")
             current = settings.large_order_message or "Не задано"
+            has_media = "Да" if settings.large_order_message_media else "Нет"
             text = (
                 "📦 <b>Сообщение о большом заказе</b>\n\n"
-                f"Текущее сообщение:\n<code>{current}</code>\n\n"
-                "Введите новое сообщение (показывается при попытке заказать 10+ штук):"
+                f"📝 Текущий текст:\n<code>{current}</code>\n"
+                f"🖼 Медиа: {has_media}\n\n"
+                "📤 Отправьте новый текст сообщения\n"
+                "📷 Можете прикрепить фото или видео\n\n"
+                "Показывается при попытке заказать 10+ штук\n"
+                "Когда закончите, нажмите <b>✅ Готово</b>"
             )
 
     # Каталог
@@ -312,7 +379,12 @@ async def process_settings_callback(
             return
 
     # Отправляем сообщение с запросом ввода
-    keyboard = get_cancel_keyboard()
+    # Для уведомлений используем специальную клавиатуру с кнопкой "Готово"
+    if section == "notifications":
+        keyboard = get_message_input_keyboard()
+    else:
+        keyboard = get_cancel_keyboard()
+
     if callback.message:
         await callback.message.edit_text(
             text=text,
@@ -557,17 +629,42 @@ async def process_welcome_message(
     state: FSMContext,
 ) -> None:
     """Обработка ввода приветственного сообщения."""
-    value = message.text.strip()
+    # Сохраняем текст в state
+    if message.text:
+        await state.update_data(message_text=message.text.strip())
+        await message.answer(
+            "✅ Текст сохранен\n\n"
+            "Можете отправить фото/видео или нажмите <b>✅ Готово</b>",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
-    settings = await BotSettings.get_settings(session)
-    settings.welcome_message = value
-    await session.commit()
+    # Сохраняем медиа в state
+    elif message.photo:
+        file_id = message.photo[-1].file_id
+        await state.update_data(message_media=file_id)
+        # Если есть caption, сохраняем как текст
+        if message.caption:
+            await state.update_data(message_text=message.caption.strip())
+        await message.answer(
+            "✅ Фото сохранено\n\n"
+            "Нажмите <b>✅ Готово</b> для завершения",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
-    await message.answer(
-        "✅ Приветственное сообщение обновлено",
-        reply_markup=get_notification_settings_keyboard(),
-    )
-    await state.clear()
+    elif message.video:
+        file_id = message.video.file_id
+        await state.update_data(message_media=file_id)
+        # Если есть caption, сохраняем как текст
+        if message.caption:
+            await state.update_data(message_text=message.caption.strip())
+        await message.answer(
+            "✅ Видео сохранено\n\n"
+            "Нажмите <b>✅ Готово</b> для завершения",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
 
 @router.message(SettingsStates.ENTER_HELP_MESSAGE, IsSuperAdmin())
@@ -577,17 +674,42 @@ async def process_help_message(
     state: FSMContext,
 ) -> None:
     """Обработка ввода сообщения помощи."""
-    value = message.text.strip()
+    # Сохраняем текст в state
+    if message.text:
+        await state.update_data(message_text=message.text.strip())
+        await message.answer(
+            "✅ Текст сохранен\n\n"
+            "Можете отправить фото/видео или нажмите <b>✅ Готово</b>",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
-    settings = await BotSettings.get_settings(session)
-    settings.help_message = value
-    await session.commit()
+    # Сохраняем медиа в state
+    elif message.photo:
+        file_id = message.photo[-1].file_id
+        await state.update_data(message_media=file_id)
+        # Если есть caption, сохраняем как текст
+        if message.caption:
+            await state.update_data(message_text=message.caption.strip())
+        await message.answer(
+            "✅ Фото сохранено\n\n"
+            "Нажмите <b>✅ Готово</b> для завершения",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
-    await message.answer(
-        "✅ Сообщение помощи обновлено",
-        reply_markup=get_notification_settings_keyboard(),
-    )
-    await state.clear()
+    elif message.video:
+        file_id = message.video.file_id
+        await state.update_data(message_media=file_id)
+        # Если есть caption, сохраняем как текст
+        if message.caption:
+            await state.update_data(message_text=message.caption.strip())
+        await message.answer(
+            "✅ Видео сохранено\n\n"
+            "Нажмите <b>✅ Готово</b> для завершения",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
 
 @router.message(SettingsStates.ENTER_LARGE_ORDER_MESSAGE, IsSuperAdmin())
@@ -597,17 +719,42 @@ async def process_large_order_message(
     state: FSMContext,
 ) -> None:
     """Обработка ввода сообщения о большом заказе."""
-    value = message.text.strip()
+    # Сохраняем текст в state
+    if message.text:
+        await state.update_data(message_text=message.text.strip())
+        await message.answer(
+            "✅ Текст сохранен\n\n"
+            "Можете отправить фото/видео или нажмите <b>✅ Готово</b>",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
-    settings = await BotSettings.get_settings(session)
-    settings.large_order_message = value
-    await session.commit()
+    # Сохраняем медиа в state
+    elif message.photo:
+        file_id = message.photo[-1].file_id
+        await state.update_data(message_media=file_id)
+        # Если есть caption, сохраняем как текст
+        if message.caption:
+            await state.update_data(message_text=message.caption.strip())
+        await message.answer(
+            "✅ Фото сохранено\n\n"
+            "Нажмите <b>✅ Готово</b> для завершения",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
-    await message.answer(
-        "✅ Сообщение о большом заказе обновлено",
-        reply_markup=get_notification_settings_keyboard(),
-    )
-    await state.clear()
+    elif message.video:
+        file_id = message.video.file_id
+        await state.update_data(message_media=file_id)
+        # Если есть caption, сохраняем как текст
+        if message.caption:
+            await state.update_data(message_text=message.caption.strip())
+        await message.answer(
+            "✅ Видео сохранено\n\n"
+            "Нажмите <b>✅ Готово</b> для завершения",
+            parse_mode="HTML",
+            reply_markup=get_message_input_keyboard(),
+        )
 
 
 @router.message(SettingsStates.ENTER_PRODUCTS_PER_PAGE, IsSuperAdmin())

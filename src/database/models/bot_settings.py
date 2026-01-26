@@ -103,9 +103,19 @@ class BotSettings(Base, TimestampMixin):
         Text, nullable=True, comment="Текст приветственного сообщения"
     )
 
+    # Медиа для приветственного сообщения
+    welcome_message_media: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, comment="File ID медиа для приветственного сообщения"
+    )
+
     # Текст сообщения помощи
     help_message: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="Текст сообщения помощи"
+    )
+
+    # Медиа для сообщения помощи
+    help_message_media: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, comment="File ID медиа для сообщения помощи"
     )
 
     # Текст для большого заказа (10+ шт)
@@ -113,6 +123,11 @@ class BotSettings(Base, TimestampMixin):
         Text,
         nullable=True,
         comment="Сообщение при попытке заказать 10+ штук одного товара",
+    )
+
+    # Медиа для сообщения о большом заказе
+    large_order_message_media: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, comment="File ID медиа для сообщения о большом заказе"
     )
 
     # === НАСТРОЙКИ КАТАЛОГА ===

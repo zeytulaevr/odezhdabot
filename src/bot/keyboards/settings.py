@@ -274,3 +274,28 @@ def get_cancel_keyboard() -> InlineKeyboardMarkup:
     )
 
     return builder.as_markup()
+
+
+def get_message_input_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для ввода сообщения с медиа.
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Готово",
+            callback_data="settings:message_done",
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="❌ Отмена",
+            callback_data="settings:cancel",
+        )
+    )
+
+    return builder.as_markup()
