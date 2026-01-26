@@ -303,20 +303,18 @@ async def process_quantity_selection(
     product_price = data.get("product_price", "—")
     color = data.get("color") or color_from_callback
 
-    text = (
-        f"✅ <b>Готово к добавлению</b>\n\n"
-        f"📦 Товар: {product_name}\n"
-        f"💰 Цена: {product_price}\n"
-    )
+    text = f"✅ <b>Готово к добавлению!</b>\n\n"
+    text += f"🛍️ <b>{product_name}</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"💰 Цена: {product_price}\n"
+    text += f"📏 Размер: <code>{size.upper()}</code>\n"
 
     if color:
-        text += f"🎨 Цвет: {color}\n"
+        text += f"🎨 Цвет: <i>{color}</i>\n"
 
-    text += (
-        f"📏 Размер: {size.upper()}\n"
-        f"🔢 Количество: {quantity} шт.\n\n"
-        f"Добавить этот товар в корзину?"
-    )
+    text += f"🔢 Количество: <b>{quantity} шт.</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += "💡 <i>Выберите действие:</i>"
 
     keyboard = get_add_to_cart_keyboard(product_id, size, quantity, color)
 
@@ -437,20 +435,18 @@ async def process_quantity_manual_input(
     product_price = data.get("product_price", "—")
 
     # Формируем текст подтверждения
-    text = (
-        f"✅ <b>Готово к добавлению</b>\n\n"
-        f"📦 Товар: {product_name}\n"
-        f"💰 Цена: {product_price}\n"
-    )
+    text = f"✅ <b>Готово к добавлению!</b>\n\n"
+    text += f"🛍️ <b>{product_name}</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"💰 Цена: {product_price}\n"
+    text += f"📏 Размер: <code>{size.upper()}</code>\n"
 
     if color:
-        text += f"🎨 Цвет: {color}\n"
+        text += f"🎨 Цвет: <i>{color}</i>\n"
 
-    text += (
-        f"📏 Размер: {size.upper()}\n"
-        f"🔢 Количество: {quantity} шт.\n\n"
-        f"Добавить этот товар в корзину?"
-    )
+    text += f"🔢 Количество: <b>{quantity} шт.</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += "💡 <i>Выберите действие:</i>"
 
     keyboard = get_add_to_cart_keyboard(product_id, size, quantity, color)
 

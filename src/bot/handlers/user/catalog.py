@@ -294,18 +294,28 @@ async def show_product_detail(
     product = products[product_index]
 
     # Формируем красивое описание товара
-    text = (
-        f"<b>{product.name}</b>\n\n"
-        f"💰 Цена: <b>{product.formatted_price}</b>\n"
-    )
+    text = f"✨ <b>{product.name}</b> ✨\n\n"
+
+    text += "━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"💰 <b>Цена:</b> {product.formatted_price}\n"
 
     if product.sizes_list:
-        text += f"📏 Размеры: {', '.join(product.sizes_list)}\n"
+        sizes_display = " • ".join([f"<code>{s}</code>" for s in product.sizes_list])
+        text += f"📏 <b>Размеры:</b> {sizes_display}\n"
+
+    if product.colors_list:
+        colors_display = " • ".join([f"<i>{c}</i>" for c in product.colors_list])
+        text += f"🎨 <b>Цвета:</b> {colors_display}\n"
+
+    if product.fit:
+        text += f"👔 <b>Крой:</b> {product.fit}\n"
+
+    text += "━━━━━━━━━━━━━━━━━━━━\n"
 
     if product.description:
         text += f"\n📝 {product.description}\n"
 
-    text += f"\n📁 Категория: {product.category.name if product.category else '—'}"
+    text += f"\n📁 <i>Категория: {product.category.name if product.category else '—'}</i>"
 
     # Клавиатура с навигацией
     keyboard = await build_product_detail_keyboard(

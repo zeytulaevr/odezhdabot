@@ -45,6 +45,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False, comment="ID настройки"),
         sa.Column("payment_details", sa.Text(), nullable=False, comment="Реквизиты для оплаты (номер карты, счёт и т.д.)"),
         sa.Column("payment_instructions", sa.Text(), nullable=True, comment="Инструкции по оплате для клиента"),
+        sa.Column("alternative_contact_username", sa.String(length=100), nullable=True, comment="Альтернативный контакт для заказов (@username)"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False, comment="Дата и время создания записи"),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False, comment="Дата и время последнего обновления записи"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_payment_settings")),

@@ -51,29 +51,29 @@ class NotificationService:
             return 0
 
         # Формируем заголовок уведомления
-        header = (
-            f"🆕 <b>Новый заказ #{order.id}</b>\n\n"
-            f"👤 Клиент: {order.user.full_name}\n"
-            f"📞 Контакт: {order.customer_contact}\n"
-            f"🕐 Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        )
+        header = f"🆕 <b>Новый заказ #{order.id}</b>\n\n"
+        header += "━━━━━━━━━━━━━━━━━━━━\n"
+        header += f"👤 <b>Клиент:</b> {order.user.full_name}\n"
+        if order.user.username:
+            header += f"📱 <b>Telegram:</b> @{order.user.username}\n"
+        header += f"📞 <b>Контакт:</b> {order.customer_contact}\n"
+        header += f"🕐 <b>Дата:</b> {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        header += "━━━━━━━━━━━━━━━━━━━━\n\n"
 
         # Формируем информацию о товарах
-        items_text = f"📦 <b>Товары в заказе ({order.total_items} шт.):</b>\n\n"
+        items_text = f"🛍️ <b>Товары ({order.total_items} шт.):</b>\n\n"
 
         for i, item in enumerate(order.items, 1):
-            items_text += f"{i}. {item.product_name}\n"
-            items_text += f"   📏 Размер: {item.size.upper()}\n"
+            items_text += f"<b>{i}.</b> {item.product_name}\n"
+            items_text += f"   📏 Размер: <code>{item.size.upper()}</code>"
             if item.color:
-                items_text += f"   🎨 Цвет: {item.color}\n"
-            items_text += f"   🔢 Количество: {item.quantity} шт.\n"
-            items_text += f"   💰 Цена: {item.price_at_order:,.2f} ₽\n"
-            items_text += f"   💵 Сумма: {item.total_price:,.2f} ₽\n\n"
+                items_text += f" | 🎨 <i>{item.color}</i>"
+            items_text += f"\n   🔢 {item.quantity} шт. × {item.price_at_order:,.2f} ₽ = <b>{item.total_price:,.2f} ₽</b>\n\n"
 
-        footer = (
-            f"💰 <b>Итого: {order.total_price:,.2f} ₽</b>\n\n"
-            f"Для обработки заказа используйте команду /admin"
-        )
+        footer = "━━━━━━━━━━━━━━━━━━━━\n"
+        footer += f"💰 <b>ИТОГО: {order.total_price:,.2f} ₽</b>\n"
+        footer += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        footer += "⚙️ Для обработки используйте /admin"
 
         # Объединяем всё
         full_text = header + items_text + footer
@@ -165,28 +165,25 @@ class NotificationService:
             True при успехе
         """
         # Формируем заголовок
-        header = (
-            f"✅ <b>Ваш заказ принят!</b>\n\n"
-            f"📋 Номер заказа: <code>#{order.id}</code>\n\n"
-        )
+        header = f"✅ <b>Ваш заказ принят!</b>\n\n"
+        header += f"📋 Номер заказа: <code>#{order.id}</code>\n"
+        header += "━━━━━━━━━━━━━━━━━━━━\n\n"
 
         # Формируем информацию о товарах
-        items_text = f"📦 <b>Товары в заказе ({order.total_items} шт.):</b>\n\n"
+        items_text = f"🛍️ <b>Состав заказа ({order.total_items} шт.):</b>\n\n"
 
         for i, item in enumerate(order.items, 1):
-            items_text += f"{i}. {item.product_name}\n"
-            items_text += f"   📏 Размер: {item.size.upper()}\n"
+            items_text += f"<b>{i}.</b> {item.product_name}\n"
+            items_text += f"   📏 Размер: <code>{item.size.upper()}</code>"
             if item.color:
-                items_text += f"   🎨 Цвет: {item.color}\n"
-            items_text += f"   🔢 Количество: {item.quantity} шт.\n"
-            items_text += f"   💰 Цена: {item.price_at_order:,.2f} ₽\n"
-            items_text += f"   💵 Сумма: {item.total_price:,.2f} ₽\n\n"
+                items_text += f" | 🎨 <i>{item.color}</i>"
+            items_text += f"\n   🔢 {item.quantity} шт. × {item.price_at_order:,.2f} ₽ = <b>{item.total_price:,.2f} ₽</b>\n\n"
 
-        footer = (
-            f"💰 <b>Итого: {order.total_price:,.2f} ₽</b>\n\n"
-            f"Мы свяжемся с вами в ближайшее время.\n"
-            f"Следите за статусом заказа в разделе 'Мои заказы'."
-        )
+        footer = "━━━━━━━━━━━━━━━━━━━━\n"
+        footer += f"💰 <b>ИТОГО: {order.total_price:,.2f} ₽</b>\n"
+        footer += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        footer += "📞 Мы свяжемся с вами в ближайшее время.\n"
+        footer += "📊 Следите за статусом в разделе 'Мои заказы'."
 
         # Объединяем всё
         full_text = header + items_text + footer

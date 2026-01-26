@@ -1,6 +1,6 @@
 """Модель настроек платежей."""
 
-from sqlalchemy import Integer, Text
+from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base, TimestampMixin
@@ -25,6 +25,11 @@ class PaymentSettings(Base, TimestampMixin):
     # Дополнительная информация об оплате
     payment_instructions: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="Инструкции по оплате для клиента"
+    )
+
+    # Альтернативный контакт для заказов (например, @username)
+    alternative_contact_username: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, comment="Альтернативный контакт для заказов (@username)"
     )
 
     @classmethod
