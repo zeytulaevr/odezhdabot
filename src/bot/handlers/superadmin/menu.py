@@ -302,23 +302,20 @@ async def process_superadmin_callback(
             )
         return
     elif action == "settings":
-        # Настройки - показываем информацию
+        # Настройки - показываем меню настроек
+        from src.bot.keyboards.settings import get_settings_menu_keyboard
+
         text = (
-            "⚙️ <b>Настройки</b>\n\n"
-            "Здесь будут настройки бота:\n"
-            "• Управление каналом публикации\n"
-            "• Настройки модерации\n"
-            "• Настройки уведомлений\n"
-            "• Прочие параметры\n\n"
-            "💡 Для изменения настроек используйте переменные окружения в .env файле"
+            "⚙️ <b>Настройки бота</b>\n\n"
+            "Выберите раздел для настройки:"
         )
-        keyboard = get_back_to_superadmin_keyboard()
+        keyboard = get_settings_menu_keyboard()
         if callback.message:
             await edit_message_with_navigation(
                 callback=callback,
                 state=state,
                 text=text,
-                markup=keyboard.as_markup(),
+                markup=keyboard,
             )
         return
     elif action == "stats":
