@@ -1,7 +1,9 @@
 """Фильтры для проверки прав доступа."""
 
+from typing import Union
+
 from aiogram.filters import BaseFilter
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
 from src.core.constants import UserRole
 from src.database.models.user import User
@@ -10,11 +12,11 @@ from src.database.models.user import User
 class IsAdminFilter(BaseFilter):
     """Фильтр для проверки, является ли пользователь администратором."""
 
-    async def __call__(self, message: Message, user: User | None = None) -> bool:
+    async def __call__(self, event: Union[Message, CallbackQuery], user: User | None = None) -> bool:
         """Проверка прав администратора.
 
         Args:
-            message: Сообщение от пользователя
+            event: Сообщение или callback от пользователя
             user: Пользователь из БД (добавляется AuthMiddleware)
 
         Returns:
@@ -30,11 +32,11 @@ class IsAdminFilter(BaseFilter):
 class IsModeratorFilter(BaseFilter):
     """Фильтр для проверки, является ли пользователь модератором или администратором."""
 
-    async def __call__(self, message: Message, user: User | None = None) -> bool:
+    async def __call__(self, event: Union[Message, CallbackQuery], user: User | None = None) -> bool:
         """Проверка прав модератора.
 
         Args:
-            message: Сообщение от пользователя
+            event: Сообщение или callback от пользователя
             user: Пользователь из БД (добавляется AuthMiddleware)
 
         Returns:

@@ -1,7 +1,9 @@
 """Фильтры для проверки ролей пользователей."""
 
+from typing import Union
+
 from aiogram.filters import BaseFilter
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
 from src.core.constants import UserRole
 from src.database.models.user import User
@@ -18,11 +20,11 @@ class RoleFilter(BaseFilter):
         """
         self.roles = roles
 
-    async def __call__(self, message: Message, user: User | None = None) -> bool:
+    async def __call__(self, event: Union[Message, CallbackQuery], user: User | None = None) -> bool:
         """Проверка роли пользователя.
 
         Args:
-            message: Сообщение от пользователя
+            event: Сообщение или callback от пользователя
             user: Пользователь из БД (добавляется AuthMiddleware)
 
         Returns:
@@ -37,11 +39,11 @@ class RoleFilter(BaseFilter):
 class IsAdmin(BaseFilter):
     """Фильтр для проверки, является ли пользователь администратором."""
 
-    async def __call__(self, message: Message, user: User | None = None) -> bool:
+    async def __call__(self, event: Union[Message, CallbackQuery], user: User | None = None) -> bool:
         """Проверка прав администратора.
 
         Args:
-            message: Сообщение от пользователя
+            event: Сообщение или callback от пользователя
             user: Пользователь из БД
 
         Returns:
@@ -56,11 +58,11 @@ class IsAdmin(BaseFilter):
 class IsSuperAdmin(BaseFilter):
     """Фильтр для проверки, является ли пользователь супер-администратором."""
 
-    async def __call__(self, message: Message, user: User | None = None) -> bool:
+    async def __call__(self, event: Union[Message, CallbackQuery], user: User | None = None) -> bool:
         """Проверка прав супер-администратора.
 
         Args:
-            message: Сообщение от пользователя
+            event: Сообщение или callback от пользователя
             user: Пользователь из БД
 
         Returns:
@@ -75,11 +77,11 @@ class IsSuperAdmin(BaseFilter):
 class IsUser(BaseFilter):
     """Фильтр для проверки, является ли пользователь обычным клиентом."""
 
-    async def __call__(self, message: Message, user: User | None = None) -> bool:
+    async def __call__(self, event: Union[Message, CallbackQuery], user: User | None = None) -> bool:
         """Проверка обычного пользователя.
 
         Args:
-            message: Сообщение от пользователя
+            event: Сообщение или callback от пользователя
             user: Пользователь из БД
 
         Returns:
