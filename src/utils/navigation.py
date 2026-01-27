@@ -240,15 +240,21 @@ async def go_back(
     Returns:
         True если удалось вернуться, False если история пуста
     """
+    from aiogram.exceptions import TelegramBadRequest
+
     prev_screen = await NavigationStack.pop(state)
 
     if not prev_screen:
         # История пуста, возвращаем на главное меню
         await callback.answer("История пуста")
-        await callback.message.edit_text(
-            text=default_text,
-            parse_mode="HTML",
-        )
+        try:
+            await callback.message.edit_text(
+                text=default_text,
+                parse_mode="HTML",
+            )
+        except TelegramBadRequest as e:
+            if "message is not modified" not in str(e).lower():
+                raise
         return False
 
     # Восстанавливаем предыдущий экран
@@ -270,6 +276,13 @@ async def go_back(
                 reply_markup=prev_screen.markup,
                 parse_mode=prev_screen.parse_mode,
             )
+        await callback.answer()
+        return True
+    except TelegramBadRequest as e:
+        # Если сообщение не изменилось, просто игнорируем ошибку
+        if "message is not modified" not in str(e).lower():
+            await callback.answer(f"Ошибка навигации: {e}", show_alert=True)
+            return False
         await callback.answer()
         return True
     except Exception as e:
@@ -301,6 +314,8 @@ async def edit_message_with_navigation(
         save_to_history: Сохранять ли в истории (по умолчанию True)
         **extra_data: Дополнительные данные
     """
+    from aiogram.exceptions import TelegramBadRequest
+
     # Получаем текущий экран ДО изменения
     current_text = callback.message.text or callback.message.caption or ""
     current_markup = callback.message.reply_markup
@@ -322,11 +337,17 @@ async def edit_message_with_navigation(
         )
 
     # Затем редактируем сообщение на НОВЫЙ экран
-    await callback.message.edit_text(
-        text=text,
-        reply_markup=markup,
-        parse_mode=parse_mode,
-    )
+    try:
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=markup,
+            parse_mode=parse_mode,
+        )
+    except TelegramBadRequest as e:
+        # Если сообщение не изменилось, просто игнорируем ошибку
+        if "message is not modified" not in str(e).lower():
+            raise
+
     await callback.answer()
 
 

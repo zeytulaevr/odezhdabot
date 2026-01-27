@@ -1,9 +1,10 @@
 """Действия администратора с заказами."""
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.filters.role import IsAdmin
@@ -19,6 +20,32 @@ from src.services.notification_service import NotificationService
 logger = get_logger(__name__)
 
 router = Router(name="admin_order_actions")
+
+
+async def safe_edit_message(
+    callback: CallbackQuery,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+    parse_mode: str = "HTML",
+) -> None:
+    """Безопасное редактирование сообщения с обработкой ошибки 'message is not modified'.
+
+    Args:
+        callback: CallbackQuery
+        text: Новый текст сообщения
+        reply_markup: Клавиатура
+        parse_mode: Режим парсинга
+    """
+    try:
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode,
+        )
+    except TelegramBadRequest as e:
+        # Игнорируем ошибку "message is not modified"
+        if "message is not modified" not in str(e).lower():
+            raise
 
 
 class AdminOrderStates(StatesGroup):
@@ -66,10 +93,10 @@ async def change_order_status(
 
     keyboard = get_status_change_confirmation_keyboard(order_id, new_status)
 
-    await callback.message.edit_text(
+    await safe_edit_message(
+        callback=callback,
         text=text,
         reply_markup=keyboard,
-        parse_mode="HTML",
     )
 
     await callback.answer()
@@ -132,10 +159,10 @@ async def confirm_status_change(
         detail_text = format_admin_order_detail(order)
         keyboard = get_order_actions_keyboard(order_id, order.status)
 
-        await callback.message.edit_text(
+        await safe_edit_message(
+            callback=callback,
             text=detail_text,
             reply_markup=keyboard,
-            parse_mode="HTML",
         )
 
         await callback.answer("✅ Статус изменён")
@@ -172,9 +199,9 @@ async def start_add_note(
         f"Введите текст заметки или /cancel для отмены:"
     )
 
-    await callback.message.edit_text(
+    await safe_edit_message(
+        callback=callback,
         text=text,
-        parse_mode="HTML",
     )
 
     await state.set_state(AdminOrderStates.ADD_NOTE)
@@ -359,9 +386,9 @@ async def start_chat_with_client(
         f"Введите сообщение для клиента или /cancel для отмены:"
     )
 
-    await callback.message.edit_text(
+    await safe_edit_message(
+        callback=callback,
         text=text,
-        parse_mode="HTML",
     )
 
     await state.set_state(AdminOrderStates.SEND_MESSAGE_TO_CLIENT)
@@ -514,9 +541,9 @@ async def start_edit_order(
         f"Введите новые контактные данные клиента или /cancel для отмены:"
     )
 
-    await callback.message.edit_text(
+    await safe_edit_message(
+        callback=callback,
         text=text,
-        parse_mode="HTML",
     )
 
     await state.set_state(AdminOrderStates.EDIT_CONTACT)
