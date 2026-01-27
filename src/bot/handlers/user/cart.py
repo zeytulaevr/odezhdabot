@@ -724,8 +724,8 @@ async def show_bonus_question_checkout(
         f"Использовать бонусы?"
     )
 
-    # Сохраняем доступную сумму бонусов
-    await state.update_data(available_bonus_amount=actual_bonus_amount)
+    # Сохраняем доступную сумму бонусов (конвертируем Decimal в float для JSON)
+    await state.update_data(available_bonus_amount=float(actual_bonus_amount))
 
     from aiogram.types import InlineKeyboardButton
     from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -1434,8 +1434,8 @@ async def show_bonus_question_quick_order(
         f"Использовать бонусы?"
     )
 
-    # Сохраняем доступную сумму бонусов
-    await state.update_data(available_bonus_amount=actual_bonus_amount, total_price=total_price)
+    # Сохраняем доступную сумму бонусов (конвертируем Decimal в float для JSON)
+    await state.update_data(available_bonus_amount=float(actual_bonus_amount), total_price=total_price)
 
     from aiogram.types import InlineKeyboardButton
     from aiogram.utils.keyboard import InlineKeyboardBuilder
