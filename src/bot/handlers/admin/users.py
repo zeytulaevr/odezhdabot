@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.filters.role import IsAdmin
 from src.bot.keyboards.users import (
+    get_bonus_operations_keyboard,
     get_user_ban_confirm_keyboard,
     get_user_profile_keyboard,
     get_users_list_keyboard,
@@ -39,7 +40,11 @@ class UserSearchStates(StatesGroup):
 class UserBonusStates(StatesGroup):
     """Состояния редактирования бонусов."""
 
-    WAITING_BONUS_AMOUNT = State()
+    WAITING_ADD_AMOUNT = State()
+    WAITING_SUBTRACT_AMOUNT = State()
+    WAITING_SET_AMOUNT = State()
+    WAITING_PURCHASE_PRICE = State()
+    WAITING_DISCOUNT_PERCENT = State()
 
 
 def format_role_name(role: str) -> str:
@@ -447,74 +452,97 @@ async def start_edit_user_bonus(
         await callback.answer("❌ Пользователь не найден", show_alert=True)
         return
 
-    # Сохраняем ID пользователя в state для последующего использования
-    await state.update_data(edit_bonus_user_id=user.id)
-
     text = (
-        f"💰 <b>Редактирование бонусов</b>\n\n"
+        f"💰 <b>Управление бонусами</b>\n\n"
         f"<b>Пользователь:</b> {user.full_name}\n"
         f"<b>Текущий баланс:</b> {float(user.bonus_balance):.2f} ₽\n\n"
-        f"Введите новое значение баланса бонусов:\n"
-        f"(например: 100 или 150.50)"
+        f"Выберите операцию:"
+    )
+
+    await edit_message_with_navigation(
+        callback=callback,
+        state=state,
+        text=text,
+        markup=get_bonus_operations_keyboard(user.id),
+    )
+
+
+# ==================== ОПЕРАЦИИ С БОНУСАМИ ====================
+
+
+@router.callback_query(F.data.startswith("bonus:add:"), IsAdmin())
+async def bonus_add_start(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Начать начисление бонусов."""
+    user_id = int(callback.data.split(":")[2])
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    await state.update_data(bonus_target_user_id=user_id)
+
+    text = (
+        f"➕ <b>Начисление бонусов</b>\n\n"
+        f"<b>Пользователь:</b> {target_user.full_name}\n"
+        f"<b>Текущий баланс:</b> {float(target_user.bonus_balance):.2f} ₽\n\n"
+        f"Введите сумму для начисления:"
     )
 
     await callback.message.edit_text(
         text=text,
-        reply_markup=get_cancel_keyboard(f"users:view:{user.id}"),
+        reply_markup=get_cancel_keyboard(f"users:edit_bonus:{user_id}"),
         parse_mode="HTML",
     )
-    await state.set_state(UserBonusStates.WAITING_BONUS_AMOUNT)
+    await state.set_state(UserBonusStates.WAITING_ADD_AMOUNT)
     await callback.answer()
 
 
-@router.message(IsAdmin(), UserBonusStates.WAITING_BONUS_AMOUNT, F.text)
-async def process_edit_user_bonus(
+@router.message(IsAdmin(), UserBonusStates.WAITING_ADD_AMOUNT, F.text)
+async def bonus_add_process(
     message: Message,
     session: AsyncSession,
     state: FSMContext,
     user: User,
 ) -> None:
-    """Обработка нового значения бонусов."""
-    # Получаем ID пользователя из state
+    """Обработка начисления бонусов."""
     data = await state.get_data()
-    user_id = data.get("edit_bonus_user_id")
+    user_id = data.get("bonus_target_user_id")
 
     if not user_id:
         await message.answer("❌ Ошибка: пользователь не найден")
         await state.clear()
         return
 
-    # Валидация ввода
     try:
-        bonus_amount = float(message.text.strip().replace(",", "."))
-        if bonus_amount < 0:
+        amount = float(message.text.strip().replace(",", "."))
+        if amount <= 0:
             await message.answer(
-                "❌ <b>Ошибка</b>\n\n"
-                "Сумма не может быть отрицательной.\n"
-                "Попробуйте снова:",
+                "❌ <b>Ошибка</b>\n\nСумма должна быть положительной.",
                 parse_mode="HTML",
             )
             return
 
-        if bonus_amount > 1000000:
+        if amount > 1000000:
             await message.answer(
-                "❌ <b>Ошибка</b>\n\n"
-                "Слишком большая сумма (максимум 1,000,000).\n"
-                "Попробуйте снова:",
+                "❌ <b>Ошибка</b>\n\nСлишком большая сумма (максимум 1,000,000).",
                 parse_mode="HTML",
             )
             return
 
     except ValueError:
         await message.answer(
-            "❌ <b>Ошибка</b>\n\n"
-            "Неверный формат числа.\n"
-            "Введите число (например: 100 или 150.50):",
+            "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
             parse_mode="HTML",
         )
         return
 
-    # Обновляем бонусы пользователя
     user_repo = UserRepository(session)
     target_user = await user_repo.get_by_id(user_id)
 
@@ -524,27 +552,28 @@ async def process_edit_user_bonus(
         return
 
     old_balance = float(target_user.bonus_balance)
-    target_user.bonus_balance = bonus_amount
+    new_balance = old_balance + amount
+    target_user.bonus_balance = new_balance
     await session.commit()
-
     await state.clear()
 
     logger.info(
-        "User bonus balance updated",
+        "Bonuses added",
         target_user_id=target_user.id,
+        amount=amount,
         old_balance=old_balance,
-        new_balance=bonus_amount,
-        updated_by=user.id,
+        new_balance=new_balance,
+        admin_id=user.id,
     )
 
     text = (
-        f"✅ <b>Бонусы обновлены</b>\n\n"
+        f"✅ <b>Бонусы начислены</b>\n\n"
         f"<b>Пользователь:</b> {target_user.full_name}\n"
-        f"<b>Старый баланс:</b> {old_balance:.2f} ₽\n"
-        f"<b>Новый баланс:</b> {bonus_amount:.2f} ₽"
+        f"<b>Начислено:</b> +{amount:.2f} ₽\n"
+        f"<b>Было:</b> {old_balance:.2f} ₽\n"
+        f"<b>Стало:</b> {new_balance:.2f} ₽"
     )
 
-    # Показываем обновлённый профиль
     from aiogram.types import InlineKeyboardButton
     from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -555,12 +584,412 @@ async def process_edit_user_bonus(
             callback_data=f"users:view:{target_user.id}",
         )
     )
-    builder.row(
-        InlineKeyboardButton(text="🏠 В меню", callback_data="admin:menu")
+
+    await message.answer(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("bonus:subtract:"), IsAdmin())
+async def bonus_subtract_start(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Начать списание бонусов."""
+    user_id = int(callback.data.split(":")[2])
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    await state.update_data(bonus_target_user_id=user_id)
+
+    text = (
+        f"➖ <b>Списание бонусов</b>\n\n"
+        f"<b>Пользователь:</b> {target_user.full_name}\n"
+        f"<b>Текущий баланс:</b> {float(target_user.bonus_balance):.2f} ₽\n\n"
+        f"Введите сумму для списания:"
     )
 
-    await message.answer(
+    await callback.message.edit_text(
         text=text,
-        reply_markup=builder.as_markup(),
+        reply_markup=get_cancel_keyboard(f"users:edit_bonus:{user_id}"),
         parse_mode="HTML",
     )
+    await state.set_state(UserBonusStates.WAITING_SUBTRACT_AMOUNT)
+    await callback.answer()
+
+
+@router.message(IsAdmin(), UserBonusStates.WAITING_SUBTRACT_AMOUNT, F.text)
+async def bonus_subtract_process(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Обработка списания бонусов."""
+    data = await state.get_data()
+    user_id = data.get("bonus_target_user_id")
+
+    if not user_id:
+        await message.answer("❌ Ошибка: пользователь не найден")
+        await state.clear()
+        return
+
+    try:
+        amount = float(message.text.strip().replace(",", "."))
+        if amount <= 0:
+            await message.answer(
+                "❌ <b>Ошибка</b>\n\nСумма должна быть положительной.",
+                parse_mode="HTML",
+            )
+            return
+
+    except ValueError:
+        await message.answer(
+            "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            parse_mode="HTML",
+        )
+        return
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await message.answer("❌ Пользователь не найден")
+        await state.clear()
+        return
+
+    old_balance = float(target_user.bonus_balance)
+
+    if amount > old_balance:
+        await message.answer(
+            f"❌ <b>Ошибка</b>\n\n"
+            f"Недостаточно бонусов!\n"
+            f"На балансе: {old_balance:.2f} ₽\n"
+            f"Попытка списать: {amount:.2f} ₽",
+            parse_mode="HTML",
+        )
+        return
+
+    new_balance = old_balance - amount
+    target_user.bonus_balance = new_balance
+    await session.commit()
+    await state.clear()
+
+    logger.info(
+        "Bonuses subtracted",
+        target_user_id=target_user.id,
+        amount=amount,
+        old_balance=old_balance,
+        new_balance=new_balance,
+        admin_id=user.id,
+    )
+
+    text = (
+        f"✅ <b>Бонусы списаны</b>\n\n"
+        f"<b>Пользователь:</b> {target_user.full_name}\n"
+        f"<b>Списано:</b> -{amount:.2f} ₽\n"
+        f"<b>Было:</b> {old_balance:.2f} ₽\n"
+        f"<b>Стало:</b> {new_balance:.2f} ₽"
+    )
+
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="◀️ К профилю",
+            callback_data=f"users:view:{target_user.id}",
+        )
+    )
+
+    await message.answer(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("bonus:set:"), IsAdmin())
+async def bonus_set_start(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Начать установку баланса."""
+    user_id = int(callback.data.split(":")[2])
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    await state.update_data(bonus_target_user_id=user_id)
+
+    text = (
+        f"💰 <b>Установка баланса</b>\n\n"
+        f"<b>Пользователь:</b> {target_user.full_name}\n"
+        f"<b>Текущий баланс:</b> {float(target_user.bonus_balance):.2f} ₽\n\n"
+        f"Введите новый баланс:"
+    )
+
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_cancel_keyboard(f"users:edit_bonus:{user_id}"),
+        parse_mode="HTML",
+    )
+    await state.set_state(UserBonusStates.WAITING_SET_AMOUNT)
+    await callback.answer()
+
+
+@router.message(IsAdmin(), UserBonusStates.WAITING_SET_AMOUNT, F.text)
+async def bonus_set_process(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Обработка установки баланса."""
+    data = await state.get_data()
+    user_id = data.get("bonus_target_user_id")
+
+    if not user_id:
+        await message.answer("❌ Ошибка: пользователь не найден")
+        await state.clear()
+        return
+
+    try:
+        amount = float(message.text.strip().replace(",", "."))
+        if amount < 0:
+            await message.answer(
+                "❌ <b>Ошибка</b>\n\nСумма не может быть отрицательной.",
+                parse_mode="HTML",
+            )
+            return
+
+        if amount > 1000000:
+            await message.answer(
+                "❌ <b>Ошибка</b>\n\nСлишком большая сумма (максимум 1,000,000).",
+                parse_mode="HTML",
+            )
+            return
+
+    except ValueError:
+        await message.answer(
+            "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            parse_mode="HTML",
+        )
+        return
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await message.answer("❌ Пользователь не найден")
+        await state.clear()
+        return
+
+    old_balance = float(target_user.bonus_balance)
+    target_user.bonus_balance = amount
+    await session.commit()
+    await state.clear()
+
+    logger.info(
+        "Bonus balance set",
+        target_user_id=target_user.id,
+        old_balance=old_balance,
+        new_balance=amount,
+        admin_id=user.id,
+    )
+
+    text = (
+        f"✅ <b>Баланс установлен</b>\n\n"
+        f"<b>Пользователь:</b> {target_user.full_name}\n"
+        f"<b>Было:</b> {old_balance:.2f} ₽\n"
+        f"<b>Стало:</b> {amount:.2f} ₽"
+    )
+
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="◀️ К профилю",
+            callback_data=f"users:view:{target_user.id}",
+        )
+    )
+
+    await message.answer(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("bonus:discount:"), IsAdmin())
+async def bonus_discount_start(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Начать списание со скидкой."""
+    user_id = int(callback.data.split(":")[2])
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    await state.update_data(bonus_target_user_id=user_id)
+
+    text = (
+        f"🛍 <b>Списание со скидкой</b>\n\n"
+        f"<b>Пользователь:</b> {target_user.full_name}\n"
+        f"<b>Баланс бонусов:</b> {float(target_user.bonus_balance):.2f} ₽\n\n"
+        f"Введите полную стоимость покупки:"
+    )
+
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_cancel_keyboard(f"users:edit_bonus:{user_id}"),
+        parse_mode="HTML",
+    )
+    await state.set_state(UserBonusStates.WAITING_PURCHASE_PRICE)
+    await callback.answer()
+
+
+@router.message(IsAdmin(), UserBonusStates.WAITING_PURCHASE_PRICE, F.text)
+async def bonus_discount_price(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    """Обработка стоимости покупки."""
+    try:
+        price = float(message.text.strip().replace(",", "."))
+        if price <= 0:
+            await message.answer(
+                "❌ <b>Ошибка</b>\n\nСтоимость должна быть положительной.",
+                parse_mode="HTML",
+            )
+            return
+
+    except ValueError:
+        await message.answer(
+            "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            parse_mode="HTML",
+        )
+        return
+
+    await state.update_data(purchase_price=price)
+
+    text = (
+        f"🛍 <b>Списание со скидкой</b>\n\n"
+        f"<b>Стоимость покупки:</b> {price:.2f} ₽\n\n"
+        f"Введите процент скидки (например: 10 для 10%):"
+    )
+
+    await message.answer(text=text, parse_mode="HTML")
+    await state.set_state(UserBonusStates.WAITING_DISCOUNT_PERCENT)
+
+
+@router.message(IsAdmin(), UserBonusStates.WAITING_DISCOUNT_PERCENT, F.text)
+async def bonus_discount_process(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Обработка процента скидки и списание бонусов."""
+    data = await state.get_data()
+    user_id = data.get("bonus_target_user_id")
+    price = data.get("purchase_price")
+
+    if not user_id or not price:
+        await message.answer("❌ Ошибка: данные не найдены")
+        await state.clear()
+        return
+
+    try:
+        discount_percent = float(message.text.strip().replace(",", "."))
+        if discount_percent <= 0 or discount_percent > 100:
+            await message.answer(
+                "❌ <b>Ошибка</b>\n\nПроцент должен быть от 0 до 100.",
+                parse_mode="HTML",
+            )
+            return
+
+    except ValueError:
+        await message.answer(
+            "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            parse_mode="HTML",
+        )
+        return
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await message.answer("❌ Пользователь не найден")
+        await state.clear()
+        return
+
+    # Расчет
+    discount_amount = price * (discount_percent / 100)
+    final_price = price - discount_amount
+    old_balance = float(target_user.bonus_balance)
+
+    if discount_amount > old_balance:
+        await message.answer(
+            f"❌ <b>Недостаточно бонусов!</b>\n\n"
+            f"<b>Стоимость:</b> {price:.2f} ₽\n"
+            f"<b>Скидка {discount_percent}%:</b> {discount_amount:.2f} ₽\n"
+            f"<b>На балансе:</b> {old_balance:.2f} ₽\n\n"
+            f"Не хватает: {(discount_amount - old_balance):.2f} ₽",
+            parse_mode="HTML",
+        )
+        await state.clear()
+        return
+
+    new_balance = old_balance - discount_amount
+    target_user.bonus_balance = new_balance
+    await session.commit()
+    await state.clear()
+
+    logger.info(
+        "Bonuses used for discount purchase",
+        target_user_id=target_user.id,
+        purchase_price=price,
+        discount_percent=discount_percent,
+        discount_amount=discount_amount,
+        final_price=final_price,
+        old_balance=old_balance,
+        new_balance=new_balance,
+        admin_id=user.id,
+    )
+
+    text = (
+        f"✅ <b>Покупка оформлена</b>\n\n"
+        f"<b>Пользователь:</b> {target_user.full_name}\n\n"
+        f"💰 <b>Расчет:</b>\n"
+        f"├ Полная стоимость: {price:.2f} ₽\n"
+        f"├ Скидка ({discount_percent}%): -{discount_amount:.2f} ₽\n"
+        f"└ К оплате: <b>{final_price:.2f} ₽</b>\n\n"
+        f"🎁 <b>Бонусы:</b>\n"
+        f"├ Было: {old_balance:.2f} ₽\n"
+        f"├ Списано: -{discount_amount:.2f} ₽\n"
+        f"└ Осталось: <b>{new_balance:.2f} ₽</b>"
+    )
+
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="◀️ К профилю",
+            callback_data=f"users:view:{target_user.id}",
+        )
+    )
+
+    await message.answer(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
