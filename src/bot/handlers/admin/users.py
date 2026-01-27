@@ -31,6 +31,28 @@ router = Router(name="admin_users")
 USERS_PER_PAGE = 10
 
 
+def get_back_to_profile_keyboard(user_id: int):
+    """Создать клавиатуру возврата к профилю.
+
+    Args:
+        user_id: ID пользователя
+
+    Returns:
+        Inline клавиатура
+    """
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="◀️ К профилю",
+            callback_data=f"users:view:{user_id}",
+        )
+    )
+    return builder.as_markup()
+
+
 class UserSearchStates(StatesGroup):
     """Состояния поиска пользователей."""
 
@@ -516,7 +538,19 @@ async def bonus_add_process(
     user_id = data.get("bonus_target_user_id")
 
     if not user_id:
-        await message.answer("❌ Ошибка: пользователь не найден")
+        await message.answer(
+            "❌ Ошибка: пользователь не найден",
+            reply_markup=get_back_to_profile_keyboard(user_id) if user_id else None,
+        )
+        await state.clear()
+        return
+
+    # Сначала получаем пользователя для клавиатуры
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await message.answer("❌ Пользователь не найден")
         await state.clear()
         return
 
@@ -525,6 +559,7 @@ async def bonus_add_process(
         if amount <= 0:
             await message.answer(
                 "❌ <b>Ошибка</b>\n\nСумма должна быть положительной.",
+                reply_markup=get_back_to_profile_keyboard(user_id),
                 parse_mode="HTML",
             )
             return
@@ -532,6 +567,7 @@ async def bonus_add_process(
         if amount > 1000000:
             await message.answer(
                 "❌ <b>Ошибка</b>\n\nСлишком большая сумма (максимум 1,000,000).",
+                reply_markup=get_back_to_profile_keyboard(user_id),
                 parse_mode="HTML",
             )
             return
@@ -539,16 +575,9 @@ async def bonus_add_process(
     except ValueError:
         await message.answer(
             "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            reply_markup=get_back_to_profile_keyboard(user_id),
             parse_mode="HTML",
         )
-        return
-
-    user_repo = UserRepository(session)
-    target_user = await user_repo.get_by_id(user_id)
-
-    if not target_user:
-        await message.answer("❌ Пользователь не найден")
-        await state.clear()
         return
 
     old_balance = float(target_user.bonus_balance)
@@ -638,11 +667,20 @@ async def bonus_subtract_process(
         await state.clear()
         return
 
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await message.answer("❌ Пользователь не найден")
+        await state.clear()
+        return
+
     try:
         amount = float(message.text.strip().replace(",", "."))
         if amount <= 0:
             await message.answer(
                 "❌ <b>Ошибка</b>\n\nСумма должна быть положительной.",
+                reply_markup=get_back_to_profile_keyboard(user_id),
                 parse_mode="HTML",
             )
             return
@@ -650,16 +688,9 @@ async def bonus_subtract_process(
     except ValueError:
         await message.answer(
             "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            reply_markup=get_back_to_profile_keyboard(user_id),
             parse_mode="HTML",
         )
-        return
-
-    user_repo = UserRepository(session)
-    target_user = await user_repo.get_by_id(user_id)
-
-    if not target_user:
-        await message.answer("❌ Пользователь не найден")
-        await state.clear()
         return
 
     old_balance = float(target_user.bonus_balance)
@@ -670,6 +701,7 @@ async def bonus_subtract_process(
             f"Недостаточно бонусов!\n"
             f"На балансе: {old_balance:.2f} ₽\n"
             f"Попытка списать: {amount:.2f} ₽",
+            reply_markup=get_back_to_profile_keyboard(user_id),
             parse_mode="HTML",
         )
         return
@@ -760,11 +792,20 @@ async def bonus_set_process(
         await state.clear()
         return
 
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await message.answer("❌ Пользователь не найден")
+        await state.clear()
+        return
+
     try:
         amount = float(message.text.strip().replace(",", "."))
         if amount < 0:
             await message.answer(
                 "❌ <b>Ошибка</b>\n\nСумма не может быть отрицательной.",
+                reply_markup=get_back_to_profile_keyboard(user_id),
                 parse_mode="HTML",
             )
             return
@@ -772,6 +813,7 @@ async def bonus_set_process(
         if amount > 1000000:
             await message.answer(
                 "❌ <b>Ошибка</b>\n\nСлишком большая сумма (максимум 1,000,000).",
+                reply_markup=get_back_to_profile_keyboard(user_id),
                 parse_mode="HTML",
             )
             return
@@ -779,16 +821,9 @@ async def bonus_set_process(
     except ValueError:
         await message.answer(
             "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            reply_markup=get_back_to_profile_keyboard(user_id),
             parse_mode="HTML",
         )
-        return
-
-    user_repo = UserRepository(session)
-    target_user = await user_repo.get_by_id(user_id)
-
-    if not target_user:
-        await message.answer("❌ Пользователь не найден")
-        await state.clear()
         return
 
     old_balance = float(target_user.bonus_balance)
@@ -865,11 +900,15 @@ async def bonus_discount_price(
     state: FSMContext,
 ) -> None:
     """Обработка стоимости покупки."""
+    data = await state.get_data()
+    user_id = data.get("bonus_target_user_id")
+
     try:
         price = float(message.text.strip().replace(",", "."))
         if price <= 0:
             await message.answer(
                 "❌ <b>Ошибка</b>\n\nСтоимость должна быть положительной.",
+                reply_markup=get_back_to_profile_keyboard(user_id) if user_id else None,
                 parse_mode="HTML",
             )
             return
@@ -877,6 +916,7 @@ async def bonus_discount_price(
     except ValueError:
         await message.answer(
             "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            reply_markup=get_back_to_profile_keyboard(user_id) if user_id else None,
             parse_mode="HTML",
         )
         return
@@ -906,7 +946,21 @@ async def bonus_discount_process(
     price = data.get("purchase_price")
 
     if not user_id or not price:
-        await message.answer("❌ Ошибка: данные не найдены")
+        await message.answer(
+            "❌ Ошибка: данные не найдены",
+            reply_markup=get_back_to_profile_keyboard(user_id) if user_id else None,
+        )
+        await state.clear()
+        return
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(user_id)
+
+    if not target_user:
+        await message.answer(
+            "❌ Пользователь не найден",
+            reply_markup=get_back_to_profile_keyboard(user_id) if user_id else None,
+        )
         await state.clear()
         return
 
@@ -915,6 +969,7 @@ async def bonus_discount_process(
         if discount_percent <= 0 or discount_percent > 100:
             await message.answer(
                 "❌ <b>Ошибка</b>\n\nПроцент должен быть от 0 до 100.",
+                reply_markup=get_back_to_profile_keyboard(user_id),
                 parse_mode="HTML",
             )
             return
@@ -922,16 +977,9 @@ async def bonus_discount_process(
     except ValueError:
         await message.answer(
             "❌ <b>Ошибка</b>\n\nНеверный формат числа.",
+            reply_markup=get_back_to_profile_keyboard(user_id),
             parse_mode="HTML",
         )
-        return
-
-    user_repo = UserRepository(session)
-    target_user = await user_repo.get_by_id(user_id)
-
-    if not target_user:
-        await message.answer("❌ Пользователь не найден")
-        await state.clear()
         return
 
     # Расчет
@@ -946,6 +994,7 @@ async def bonus_discount_process(
             f"<b>Скидка {discount_percent}%:</b> {discount_amount:.2f} ₽\n"
             f"<b>На балансе:</b> {old_balance:.2f} ₽\n\n"
             f"Не хватает: {(discount_amount - old_balance):.2f} ₽",
+            reply_markup=get_back_to_profile_keyboard(user_id),
             parse_mode="HTML",
         )
         await state.clear()
