@@ -154,12 +154,13 @@ class NotificationService:
         return success_count
 
     @staticmethod
-    async def notify_user_order_created(bot: Bot, order: Order) -> bool:
+    async def notify_user_order_created(bot: Bot, order: Order, alternative_contact: str | None = None) -> bool:
         """Уведомить пользователя о создании заказа.
 
         Args:
             bot: Telegram Bot instance
             order: Заказ
+            alternative_contact: Альтернативный контакт для связи
 
         Returns:
             True при успехе
@@ -183,6 +184,8 @@ class NotificationService:
         footer += f"💰 <b>ИТОГО: {order.total_price:,.2f} ₽</b>\n"
         footer += "━━━━━━━━━━━━━━━━━━━━\n\n"
         footer += "📞 Мы свяжемся с вами в ближайшее время.\n"
+        if alternative_contact:
+            footer += f"💬 Или напишите нам: {alternative_contact}\n"
         footer += "📊 Следите за статусом в разделе 'Мои заказы'."
 
         # Объединяем всё

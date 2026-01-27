@@ -689,8 +689,13 @@ async def confirm_and_create_orders(
 
         await session.commit()
 
+        # Получаем настройки платежей для альтернативного контакта
+        from src.database.models.payment_settings import PaymentSettings
+        payment_settings = await PaymentSettings.get_current_settings(session)
+        alternative_contact = payment_settings.alternative_contact_username if payment_settings else None
+
         # Уведомляем пользователя о заказе
-        await NotificationService.notify_user_order_created(callback.bot, order)
+        await NotificationService.notify_user_order_created(callback.bot, order, alternative_contact)
         # Уведомляем админов
         await NotificationService.notify_admins_new_order(callback.bot, order)
 
@@ -1094,8 +1099,13 @@ async def confirm_and_create_quick_order(
 
         await session.commit()
 
+        # Получаем настройки платежей для альтернативного контакта
+        from src.database.models.payment_settings import PaymentSettings
+        payment_settings = await PaymentSettings.get_current_settings(session)
+        alternative_contact = payment_settings.alternative_contact_username if payment_settings else None
+
         # Уведомляем пользователя
-        await NotificationService.notify_user_order_created(callback.bot, order)
+        await NotificationService.notify_user_order_created(callback.bot, order, alternative_contact)
 
         # Уведомляем админов
         await NotificationService.notify_admins_new_order(callback.bot, order)
