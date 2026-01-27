@@ -472,7 +472,7 @@ async def process_edit_user_bonus(
     message: Message,
     session: AsyncSession,
     state: FSMContext,
-    admin_user: User,
+    user: User,
 ) -> None:
     """Обработка нового значения бонусов."""
     # Получаем ID пользователя из state
@@ -516,30 +516,30 @@ async def process_edit_user_bonus(
 
     # Обновляем бонусы пользователя
     user_repo = UserRepository(session)
-    user = await user_repo.get_by_id(user_id)
+    target_user = await user_repo.get_by_id(user_id)
 
-    if not user:
+    if not target_user:
         await message.answer("❌ Пользователь не найден")
         await state.clear()
         return
 
-    old_balance = float(user.bonus_balance)
-    user.bonus_balance = bonus_amount
+    old_balance = float(target_user.bonus_balance)
+    target_user.bonus_balance = bonus_amount
     await session.commit()
 
     await state.clear()
 
     logger.info(
         "User bonus balance updated",
-        user_id=user.id,
+        target_user_id=target_user.id,
         old_balance=old_balance,
         new_balance=bonus_amount,
-        updated_by=admin_user.id,
+        updated_by=user.id,
     )
 
     text = (
         f"✅ <b>Бонусы обновлены</b>\n\n"
-        f"<b>Пользователь:</b> {user.full_name}\n"
+        f"<b>Пользователь:</b> {target_user.full_name}\n"
         f"<b>Старый баланс:</b> {old_balance:.2f} ₽\n"
         f"<b>Новый баланс:</b> {bonus_amount:.2f} ₽"
     )
@@ -552,7 +552,7 @@ async def process_edit_user_bonus(
     builder.row(
         InlineKeyboardButton(
             text="◀️ К профилю",
-            callback_data=f"users:view:{user.id}",
+            callback_data=f"users:view:{target_user.id}",
         )
     )
     builder.row(
