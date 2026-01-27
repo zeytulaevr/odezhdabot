@@ -930,6 +930,8 @@ async def confirm_and_create_orders(
         if use_bonuses and bonus_amount > 0:
             # Обновляем баланс бонусов
             user.bonus_balance -= Decimal(str(bonus_amount))
+            # Устанавливаем скидку в заказе
+            order.bonus_discount = Decimal(str(bonus_amount))
             # Добавляем заметку к заказу о списании бонусов
             if order.admin_notes:
                 order.admin_notes += f"\n\nСписано бонусов: {bonus_amount:.2f} ₽"
@@ -1606,6 +1608,8 @@ async def confirm_and_create_quick_order(
         if use_bonuses and bonus_amount > 0:
             # Обновляем баланс бонусов
             user.bonus_balance -= Decimal(str(bonus_amount))
+            # Устанавливаем скидку в заказе
+            order.bonus_discount = Decimal(str(bonus_amount))
             # Добавляем заметку к заказу о списании бонусов
             if order.admin_notes:
                 order.admin_notes += f"\n\nСписано бонусов: {bonus_amount:.2f} ₽"

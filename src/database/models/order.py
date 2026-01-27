@@ -130,6 +130,11 @@ class Order(Base, TimestampMixin):
         Text, nullable=True, comment="Заметки администратора по заказу"
     )
 
+    # Скидка по бонусам
+    bonus_discount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, default=Decimal("0"), comment="Скидка по бонусам"
+    )
+
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="orders", lazy="selectin")
     items: Mapped[list["OrderItem"]] = relationship(
@@ -150,9 +155,14 @@ class Order(Base, TimestampMixin):
         return self.status in ["completed", "cancelled"]
 
     @property
-    def total_price(self) -> Decimal:
-        """Общая стоимость заказа."""
+    def subtotal(self) -> Decimal:
+        """Стоимость товаров без учета скидок."""
         return sum(item.total_price for item in self.items)
+
+    @property
+    def total_price(self) -> Decimal:
+        """Общая стоимость заказа с учетом бонусной скидки."""
+        return max(self.subtotal - self.bonus_discount, Decimal("0"))
 
     @property
     def total_items(self) -> int:
