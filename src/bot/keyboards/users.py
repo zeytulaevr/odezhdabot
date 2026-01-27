@@ -133,6 +133,14 @@ def get_user_profile_keyboard(user: User) -> InlineKeyboardMarkup:
                 )
             )
 
+    # Управление бонусами
+    builder.row(
+        InlineKeyboardButton(
+            text="💰 Редактировать бонусы",
+            callback_data=f"users:edit_bonus:{user.id}",
+        )
+    )
+
     # Заказы пользователя
     builder.row(
         InlineKeyboardButton(
