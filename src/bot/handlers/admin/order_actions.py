@@ -308,11 +308,11 @@ async def send_payment_details(
         return
 
     # Получаем реквизиты оплаты
-    from src.database.models.payment_settings import PaymentSettings
+    from src.database.models.bot_settings import BotSettings
 
-    payment_settings = await PaymentSettings.get_current_settings(session)
+    bot_settings = await BotSettings.get_settings(session)
 
-    if not payment_settings or not payment_settings.payment_details:
+    if not bot_settings.payment_details:
         await callback.answer(
             "❌ Реквизиты оплаты не настроены. Обратитесь к администратору.",
             show_alert=True,
@@ -323,11 +323,11 @@ async def send_payment_details(
     payment_text = (
         f"💳 <b>Реквизиты для оплаты заказа #{order.id}</b>\n\n"
         f"💰 <b>Сумма к оплате:</b> {float(order.total_price):.2f} ₽\n\n"
-        f"📋 <b>Реквизиты:</b>\n{payment_settings.payment_details}\n\n"
+        f"📋 <b>Реквизиты:</b>\n{bot_settings.payment_details}\n\n"
     )
 
-    if payment_settings.payment_instructions:
-        payment_text += f"ℹ️ <b>Инструкция:</b>\n{payment_settings.payment_instructions}\n\n"
+    if bot_settings.payment_instructions:
+        payment_text += f"ℹ️ <b>Инструкция:</b>\n{bot_settings.payment_instructions}\n\n"
 
     payment_text += (
         "После оплаты отправьте подтверждение (скриншот чека) в ответ на это сообщение."
