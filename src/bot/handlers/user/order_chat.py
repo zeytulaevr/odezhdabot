@@ -15,6 +15,107 @@ logger = get_logger(__name__)
 router = Router(name="user_order_chat")
 
 
+@router.message(F.reply_to_message, F.photo)
+async def handle_payment_receipt(
+    message: Message,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Обработать отправку чека/подтверждения оплаты.
+
+    Если пользователь отправляет фото в ответ на сообщение с реквизитами,
+    фото пересылается админам как подтверждение оплаты.
+
+    Args:
+        message: Message с фото
+        session: Сессия БД
+        user: Пользователь
+    """
+    # Проверяем, что это ответ на сообщение от бота
+    if not message.reply_to_message or not message.reply_to_message.from_user.is_bot:
+        return
+
+    import re
+
+    replied_text = message.reply_to_message.text or message.reply_to_message.caption or ""
+
+    # Проверяем что это сообщение с реквизитами
+    if "Реквизиты для оплаты" not in replied_text and "реквизиты" not in replied_text.lower():
+        # Это не сообщение с реквизитами, пропускаем
+        return
+
+    # Ищем номер заказа
+    order_pattern = r"заказ.*?#(\d+)|#(\d+)"
+    match = re.search(order_pattern, replied_text, re.IGNORECASE)
+
+    if not match:
+        await message.answer("❌ Не удалось определить номер заказа")
+        return
+
+    order_id = int(match.group(1) or match.group(2))
+
+    # Получаем заказ
+    result = await session.execute(
+        select(Order).where(Order.id == order_id)
+    )
+    order = result.scalar_one_or_none()
+
+    if not order:
+        await message.answer("❌ Заказ не найден")
+        return
+
+    # Проверяем, что это заказ пользователя
+    if order.user_id != user.id:
+        await message.answer("❌ Это не ваш заказ")
+        return
+
+    # Формируем уведомление для админов
+    from src.core.config import settings
+
+    notification_text = (
+        f"💳 <b>Получено подтверждение оплаты</b>\n\n"
+        f"📋 Заказ: <code>#{order_id}</code>\n"
+        f"💰 Сумма: <b>{order.total_price:,.2f} ₽</b>\n\n"
+        f"👤 Клиент: {user.full_name}"
+    )
+    if user.username:
+        notification_text += f" (@{user.username})"
+    notification_text += f"\n📱 Контакт: {order.customer_contact}\n\n"
+    notification_text += f"<i>Проверьте чек и подтвердите оплату через: /admin → Заказы → #{order_id}</i>"
+
+    # Отправляем фото с уведомлением всем админам
+    if settings.superadmin_ids:
+        for admin_id in settings.superadmin_ids:
+            try:
+                await message.bot.send_photo(
+                    chat_id=admin_id,
+                    photo=message.photo[-1].file_id,  # Берем самое большое фото
+                    caption=notification_text,
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to notify admin about payment receipt",
+                    admin_id=admin_id,
+                    order_id=order_id,
+                    error=str(e),
+                )
+
+    # Подтверждаем получение чека
+    await message.answer(
+        "✅ <b>Чек получен!</b>\n\n"
+        "Ваше подтверждение оплаты отправлено администратору.\n"
+        "Мы проверим оплату и обновим статус заказа в ближайшее время.",
+        parse_mode="HTML",
+    )
+
+    logger.info(
+        "Payment receipt received",
+        user_id=user.id,
+        order_id=order_id,
+    )
+
+
 @router.message(F.reply_to_message, F.text)
 async def handle_reply_to_order_message(
     message: Message,
