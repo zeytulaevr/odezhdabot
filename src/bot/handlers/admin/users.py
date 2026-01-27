@@ -428,10 +428,12 @@ async def show_user_orders(
                 "cancelled": "❌",
             }.get(order.status, "❓")
 
-            product_name = order.product.name if order.product else "Неизвестный товар"
+            # Получаем описание товаров в заказе
+            items_desc = f"{order.total_items} товар(ов)" if order.items else "Нет товаров"
             date = order.created_at.strftime("%d.%m.%Y")
+            total = float(order.total_price)
 
-            text += f"{i}. {status_emoji} {product_name} - {date}\n"
+            text += f"{i}. {status_emoji} {items_desc} - {total:.0f}₽ - {date}\n"
 
         if len(orders) > 10:
             text += f"\n... и ещё {len(orders) - 10} заказов"

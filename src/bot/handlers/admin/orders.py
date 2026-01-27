@@ -43,13 +43,19 @@ def format_admin_order_list(orders: list, status_filter: str = "all") -> str:
 
     for order in orders[:15]:  # Показываем максимум 15
         status_emoji = NotificationService.get_status_emoji(order.status)
-        status_name = NotificationService.get_status_name(order.status)
-        product_name = order.product.name if order.product else "Неизвестный товар"
+
+        # Формируем описание товаров
+        if order.items:
+            items_count = order.total_items
+            items_desc = f"{items_count} товар(ов)"
+        else:
+            items_desc = "Нет товаров"
 
         text += (
-            f"{status_emoji} <b>#{order.id}</b> - {product_name}\n"
+            f"{status_emoji} <b>#{order.id}</b> - {items_desc}\n"
             f"👤 {order.user.full_name}\n"
-            f"📏 {order.size.upper()} | 📞 {order.customer_contact}\n"
+            f"📞 {order.customer_contact}\n"
+            f"💰 {float(order.total_price):.2f} ₽\n"
             f"📅 {order.created_at.strftime('%d.%m %H:%M')}\n"
             "─────────────\n"
         )
@@ -71,24 +77,49 @@ def format_admin_order_detail(order) -> str:
     status_emoji = NotificationService.get_status_emoji(order.status)
     status_name = NotificationService.get_status_name(order.status)
 
-    product_name = order.product.name if order.product else "Неизвестный товар"
-    product_price = order.product.formatted_price if order.product else "—"
-
     text = (
         f"{status_emoji} <b>Заказ #{order.id}</b>\n\n"
-        f"<b>Товар:</b> {product_name}\n"
-        f"<b>Цена:</b> {product_price}\n"
-        f"<b>Размер:</b> {order.size.upper()}\n\n"
-        f"<b>Клиент:</b> {order.user.full_name}\n"
-        f"<b>Контакт:</b> {order.customer_contact}\n"
-        f"<b>Telegram ID:</b> <code>{order.user.telegram_id}</code>\n\n"
-        f"<b>Создан:</b> {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-        f"<b>Обновлён:</b> {order.updated_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        f"<b>Статус:</b> {status_name}"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Клиент:</b> {order.user.full_name}\n"
+    )
+
+    if order.user.username:
+        text += f"📱 <b>Telegram:</b> @{order.user.username}\n"
+
+    text += (
+        f"📞 <b>Контакт:</b> {order.customer_contact}\n"
+        f"🆔 <b>Telegram ID:</b> <code>{order.user.telegram_id}</code>\n"
+        f"🕐 <b>Дата:</b> {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+
+    # Список товаров
+    if order.items:
+        text += f"🛍️ <b>Товары ({order.total_items} шт.):</b>\n\n"
+        for i, item in enumerate(order.items, 1):
+            text += (
+                f"{i}. {item.product_name}\n"
+                f"   📏 Размер: {item.size.upper()}"
+            )
+            if item.color:
+                text += f" | 🎨 {item.color}"
+            text += (
+                f"\n   🔢 {item.quantity} шт. × {float(item.price_at_order):.2f} ₽ = "
+                f"{float(item.total_price):.2f} ₽\n\n"
+            )
+    else:
+        text += "📭 <b>Нет товаров в заказе</b>\n\n"
+
+    text += (
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💰 <b>ИТОГО: {float(order.total_price):.2f} ₽</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"<b>Статус:</b> {status_name}\n"
+        f"<b>Обновлён:</b> {order.updated_at.strftime('%d.%m.%Y %H:%M')}"
     )
 
     if order.admin_notes:
-        text += f"\n\n💬 <b>Заметки:</b>\n{order.admin_notes}"
+        text += f"\n\n💬 <b>Заметки администратора:</b>\n{order.admin_notes}"
 
     return text
 
