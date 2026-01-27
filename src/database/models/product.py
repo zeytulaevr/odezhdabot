@@ -96,9 +96,6 @@ class Product(Base, TimestampMixin):
         "Category", back_populates="products", lazy="selectin"
     )
 
-    orders: Mapped[list["Order"]] = relationship(
-        "Order", back_populates="product", lazy="selectin"
-    )
 
     reviews: Mapped[list["Review"]] = relationship(
         "Review", back_populates="product", lazy="selectin", cascade="all, delete-orphan"

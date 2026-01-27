@@ -16,9 +16,10 @@ class NotificationService:
     # Эмодзи для статусов
     STATUS_EMOJI = {
         "new": "🆕",
-        "processing": "⏳",
+        "confirmed": "✔️",
         "paid": "💰",
         "shipped": "📦",
+        "delivered": "🚚",
         "completed": "✅",
         "cancelled": "❌",
     }
@@ -26,10 +27,11 @@ class NotificationService:
     # Русские названия статусов
     STATUS_NAMES = {
         "new": "Новый",
-        "processing": "В обработке",
+        "confirmed": "Подтверждён",
         "paid": "Оплачен",
         "shipped": "Отправлен",
-        "completed": "Выполнен",
+        "delivered": "Доставлен",
+        "completed": "Завершён",
         "cancelled": "Отменён",
     }
 
@@ -48,31 +50,86 @@ class NotificationService:
             logger.warning("No superadmin IDs configured for notifications")
             return 0
 
-        # Формируем текст уведомления
-        product_name = order.product.name if order.product else "Неизвестный товар"
-        product_price = order.product.formatted_price if order.product else "—"
+        # Формируем заголовок уведомления
+        header = f"🆕 <b>Новый заказ #{order.id}</b>\n\n"
+        header += "━━━━━━━━━━━━━━━━━━━━\n"
+        header += f"👤 <b>Клиент:</b> {order.user.full_name}\n"
+        if order.user.username:
+            header += f"📱 <b>Telegram:</b> @{order.user.username}\n"
+        header += f"📞 <b>Контакт:</b> {order.customer_contact}\n"
+        header += f"🕐 <b>Дата:</b> {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        header += "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        text = (
-            f"🆕 <b>Новый заказ #{order.id}</b>\n\n"
-            f"👤 Клиент: {order.user.full_name}\n"
-            f"📦 Товар: {product_name}\n"
-            f"💰 Цена: {product_price}\n"
-            f"📏 Размер: {order.size.upper()}\n"
-            f"📞 Контакт: {order.customer_contact}\n"
-            f"🕐 Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-            f"Для обработки заказа используйте команду /admin"
-        )
+        # Формируем информацию о товарах
+        items_text = f"🛍️ <b>Товары ({order.total_items} шт.):</b>\n\n"
+
+        for i, item in enumerate(order.items, 1):
+            items_text += f"<b>{i}.</b> {item.product_name}\n"
+            items_text += f"   📏 Размер: <code>{item.size.upper()}</code>"
+            if item.color:
+                items_text += f" | 🎨 <i>{item.color}</i>"
+            items_text += f"\n   🔢 {item.quantity} шт. × {item.price_at_order:,.2f} ₽ = <b>{item.total_price:,.2f} ₽</b>\n\n"
+
+        footer = "━━━━━━━━━━━━━━━━━━━━\n"
+        footer += f"💰 <b>ИТОГО: {order.total_price:,.2f} ₽</b>\n"
+        footer += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        footer += "⚙️ Для обработки используйте /admin"
+
+        # Объединяем всё
+        full_text = header + items_text + footer
+
+        # Проверяем длину сообщения (лимит Telegram - 4096 символов)
+        MAX_MESSAGE_LENGTH = 4096
 
         success_count = 0
 
         # TODO: В будущем можно отправлять уведомления всем админам из БД
         for admin_id in settings.superadmin_ids:
             try:
-                await bot.send_message(
-                    chat_id=admin_id,
-                    text=text,
-                    parse_mode="HTML",
-                )
+                # Если сообщение умещается в один - отправляем как есть
+                if len(full_text) <= MAX_MESSAGE_LENGTH:
+                    await bot.send_message(
+                        chat_id=admin_id,
+                        text=full_text,
+                        parse_mode="HTML",
+                    )
+                else:
+                    # Иначе разбиваем на части
+                    # Первое сообщение - заголовок + краткая информация
+                    summary = (
+                        header +
+                        f"📦 <b>Товаров в заказе: {order.total_items} шт.</b>\n"
+                        f"💰 <b>Итого: {order.total_price:,.2f} ₽</b>\n\n"
+                        f"⚠️ Детальная информация о товарах отправлена отдельными сообщениями\n\n"
+                        f"Для обработки заказа используйте команду /admin"
+                    )
+                    await bot.send_message(
+                        chat_id=admin_id,
+                        text=summary,
+                        parse_mode="HTML",
+                    )
+
+                    # Отправляем товары порциями
+                    items_per_message = 5
+                    for i in range(0, len(order.items), items_per_message):
+                        batch = order.items[i:i + items_per_message]
+                        batch_text = f"📦 <b>Товары {i+1}-{i+len(batch)} из {len(order.items)}:</b>\n\n"
+
+                        for j, item in enumerate(batch, start=i+1):
+                            batch_text += f"{j}. {item.product_name}\n"
+                            batch_text += f"   📏 Размер: {item.size.upper()}\n"
+                            if item.color:
+                                batch_text += f"   🎨 Цвет: {item.color}\n"
+                            batch_text += f"   🔢 Количество: {item.quantity} шт.\n"
+                            batch_text += f"   💰 Цена: {item.price_at_order:,.2f} ₽\n"
+                            batch_text += f"   💵 Сумма: {item.total_price:,.2f} ₽\n\n"
+
+                        await bot.send_message(
+                            chat_id=admin_id,
+                            text=batch_text,
+                            parse_mode="HTML",
+                        )
+
                 success_count += 1
                 logger.info(
                     "Admin notified about new order",
@@ -97,35 +154,92 @@ class NotificationService:
         return success_count
 
     @staticmethod
-    async def notify_user_order_created(bot: Bot, order: Order) -> bool:
+    async def notify_user_order_created(bot: Bot, order: Order, alternative_contact: str | None = None) -> bool:
         """Уведомить пользователя о создании заказа.
 
         Args:
             bot: Telegram Bot instance
             order: Заказ
+            alternative_contact: Альтернативный контакт для связи
 
         Returns:
             True при успехе
         """
-        product_name = order.product.name if order.product else "Неизвестный товар"
-        product_price = order.product.formatted_price if order.product else "—"
+        # Формируем заголовок
+        header = f"✅ <b>Ваш заказ принят!</b>\n\n"
+        header += f"📋 Номер заказа: <code>#{order.id}</code>\n"
+        header += "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        text = (
-            f"✅ <b>Ваш заказ принят!</b>\n\n"
-            f"📋 Номер заказа: <code>#{order.id}</code>\n"
-            f"📦 Товар: {product_name}\n"
-            f"💰 Цена: {product_price}\n"
-            f"📏 Размер: {order.size.upper()}\n\n"
-            f"Мы свяжемся с вами в ближайшее время.\n"
-            f"Следите за статусом заказа в разделе 'Мои заказы'."
-        )
+        # Формируем информацию о товарах
+        items_text = f"🛍️ <b>Состав заказа ({order.total_items} шт.):</b>\n\n"
+
+        for i, item in enumerate(order.items, 1):
+            items_text += f"<b>{i}.</b> {item.product_name}\n"
+            items_text += f"   📏 Размер: <code>{item.size.upper()}</code>"
+            if item.color:
+                items_text += f" | 🎨 <i>{item.color}</i>"
+            items_text += f"\n   🔢 {item.quantity} шт. × {item.price_at_order:,.2f} ₽ = <b>{item.total_price:,.2f} ₽</b>\n\n"
+
+        footer = "━━━━━━━━━━━━━━━━━━━━\n"
+        footer += f"💰 <b>ИТОГО: {order.total_price:,.2f} ₽</b>\n"
+        footer += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        footer += "📞 Мы свяжемся с вами в ближайшее время.\n"
+        if alternative_contact:
+            footer += f"💬 Или напишите нам: {alternative_contact}\n"
+        footer += "📊 Следите за статусом в разделе 'Мои заказы'."
+
+        # Объединяем всё
+        full_text = header + items_text + footer
+
+        # Проверяем длину сообщения (лимит Telegram - 4096 символов)
+        MAX_MESSAGE_LENGTH = 4096
 
         try:
-            await bot.send_message(
-                chat_id=order.user.telegram_id,
-                text=text,
-                parse_mode="HTML",
-            )
+            # Если сообщение умещается в один - отправляем как есть
+            if len(full_text) <= MAX_MESSAGE_LENGTH:
+                await bot.send_message(
+                    chat_id=order.user.telegram_id,
+                    text=full_text,
+                    parse_mode="HTML",
+                )
+            else:
+                # Иначе разбиваем на части
+                # Первое сообщение - заголовок + краткая информация
+                summary = (
+                    header +
+                    f"📦 <b>Товаров в заказе: {order.total_items} шт.</b>\n"
+                    f"💰 <b>Итого: {order.total_price:,.2f} ₽</b>\n\n"
+                    f"⚠️ Детальная информация о товарах отправлена отдельными сообщениями\n\n"
+                    f"Мы свяжемся с вами в ближайшее время.\n"
+                    f"Следите за статусом заказа в разделе 'Мои заказы'."
+                )
+                await bot.send_message(
+                    chat_id=order.user.telegram_id,
+                    text=summary,
+                    parse_mode="HTML",
+                )
+
+                # Отправляем товары порциями
+                items_per_message = 5
+                for i in range(0, len(order.items), items_per_message):
+                    batch = order.items[i:i + items_per_message]
+                    batch_text = f"📦 <b>Товары {i+1}-{i+len(batch)} из {len(order.items)}:</b>\n\n"
+
+                    for j, item in enumerate(batch, start=i+1):
+                        batch_text += f"{j}. {item.product_name}\n"
+                        batch_text += f"   📏 Размер: {item.size.upper()}\n"
+                        if item.color:
+                            batch_text += f"   🎨 Цвет: {item.color}\n"
+                        batch_text += f"   🔢 Количество: {item.quantity} шт.\n"
+                        batch_text += f"   💰 Цена: {item.price_at_order:,.2f} ₽\n"
+                        batch_text += f"   💵 Сумма: {item.total_price:,.2f} ₽\n\n"
+
+                    await bot.send_message(
+                        chat_id=order.user.telegram_id,
+                        text=batch_text,
+                        parse_mode="HTML",
+                    )
+
             logger.info(
                 "User notified about order creation",
                 user_id=order.user.id,
@@ -161,8 +275,8 @@ class NotificationService:
         text = (
             f"{status_emoji} <b>Статус заказа изменён</b>\n\n"
             f"📋 Заказ: <code>#{order.id}</code>\n"
-            f"📦 Товар: {order.product.name if order.product else 'Неизвестный товар'}\n"
-            f"📏 Размер: {order.size.upper()}\n\n"
+            f"📦 Товаров: {order.total_items} шт.\n"
+            f"💰 Сумма: {order.total_price:,.2f} ₽\n\n"
             f"Старый статус: {old_status_name}\n"
             f"<b>Новый статус: {status_name}</b>\n"
         )

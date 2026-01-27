@@ -1,10 +1,12 @@
 """Сервис для работы с заказами."""
 
+from decimal import Decimal
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logging import get_logger
-from src.database.models.order import Order
+from src.database.models.order import Order, OrderItem
 from src.database.models.product import Product
 from src.database.models.user import User
 
@@ -29,8 +31,9 @@ class OrderService:
         size: str,
         customer_contact: str,
         color: str | None = None,
+        quantity: int = 1,
     ) -> Order:
-        """Создать новый заказ.
+        """Создать новый заказ с одним товаром (для быстрого заказа).
 
         Args:
             user_id: ID пользователя
@@ -38,20 +41,42 @@ class OrderService:
             size: Размер товара
             customer_contact: Контактные данные клиента
             color: Выбранный цвет (опционально)
+            quantity: Количество товара (по умолчанию 1)
 
         Returns:
             Созданный заказ
         """
+        # Получаем информацию о товаре
+        result = await self.session.execute(
+            select(Product).where(Product.id == product_id)
+        )
+        product = result.scalar_one_or_none()
+
+        if not product:
+            raise ValueError(f"Product with id {product_id} not found")
+
+        # Создаем заказ
         order = Order(
             user_id=user_id,
-            product_id=product_id,
-            size=size,
-            color=color,
             customer_contact=customer_contact,
             status="new",
         )
 
         self.session.add(order)
+        await self.session.flush()
+
+        # Создаем товар в заказе
+        order_item = OrderItem(
+            order_id=order.id,
+            product_id=product_id,
+            size=size,
+            color=color,
+            quantity=quantity,
+            price_at_order=product.price,
+            product_name=product.name,
+        )
+
+        self.session.add(order_item)
         await self.session.flush()
         await self.session.refresh(order)
 
@@ -62,6 +87,84 @@ class OrderService:
             product_id=product_id,
             size=size,
             color=color,
+            quantity=quantity,
+        )
+
+        return order
+
+    async def create_order_with_items(
+        self,
+        user_id: int,
+        customer_contact: str,
+        items: list[dict],
+    ) -> Order:
+        """Создать заказ с несколькими товарами (для заказа из корзины).
+
+        Args:
+            user_id: ID пользователя
+            customer_contact: Контактные данные клиента
+            items: Список товаров в формате:
+                [
+                    {
+                        "product_id": int,
+                        "size": str,
+                        "color": str | None,
+                        "quantity": int,
+                    },
+                    ...
+                ]
+
+        Returns:
+            Созданный заказ
+
+        Raises:
+            ValueError: Если список товаров пустой или товар не найден
+        """
+        if not items:
+            raise ValueError("Items list cannot be empty")
+
+        # Создаем заказ
+        order = Order(
+            user_id=user_id,
+            customer_contact=customer_contact,
+            status="new",
+        )
+
+        self.session.add(order)
+        await self.session.flush()
+
+        # Добавляем товары в заказ
+        for item_data in items:
+            # Получаем информацию о товаре
+            result = await self.session.execute(
+                select(Product).where(Product.id == item_data["product_id"])
+            )
+            product = result.scalar_one_or_none()
+
+            if not product:
+                raise ValueError(f"Product with id {item_data['product_id']} not found")
+
+            # Создаем товар в заказе
+            order_item = OrderItem(
+                order_id=order.id,
+                product_id=item_data["product_id"],
+                size=item_data["size"],
+                color=item_data.get("color"),
+                quantity=item_data["quantity"],
+                price_at_order=product.price,
+                product_name=product.name,
+            )
+
+            self.session.add(order_item)
+
+        await self.session.flush()
+        await self.session.refresh(order)
+
+        logger.info(
+            "Order with multiple items created",
+            order_id=order.id,
+            user_id=user_id,
+            items_count=len(items),
         )
 
         return order

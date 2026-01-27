@@ -1,15 +1,17 @@
 """Модель пользователя."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, Index, String, func
+from sqlalchemy import BigInteger, DateTime, Index, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.constants import UserRole
 from src.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from src.database.models.cart import Cart
     from src.database.models.order import Order
     from src.database.models.review import Review
 
@@ -73,7 +75,19 @@ class User(Base, TimestampMixin):
         comment="Дата последней активности пользователя",
     )
 
+    # Баланс бонусов
+    bonus_balance: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        server_default="0",
+        comment="Баланс бонусов пользователя",
+    )
+
     # Relationships
+    cart: Mapped["Cart | None"] = relationship(
+        "Cart", back_populates="user", uselist=False, lazy="selectin", cascade="all, delete-orphan"
+    )
+
     orders: Mapped[list["Order"]] = relationship(
         "Order", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
     )

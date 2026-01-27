@@ -76,6 +76,55 @@ def get_size_selection_keyboard(product_id: int, sizes: list[str], fit: str | No
     return builder.as_markup()
 
 
+def get_quantity_selection_keyboard(product_id: int, size: str, color: str | None = None) -> InlineKeyboardMarkup:
+    """Клавиатура выбора количества товара.
+
+    Args:
+        product_id: ID товара
+        size: Выбранный размер
+        color: Выбранный цвет (опционально)
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    # Кнопки с количеством (1-3)
+    row = []
+    for i in range(1, 4):
+        # Формируем callback_data с учетом цвета
+        callback_data = f"order_quantity:{product_id}:{size}:{i}"
+        if color:
+            callback_data += f":{color}"
+
+        row.append(
+            InlineKeyboardButton(
+                text=f"{i} шт.",
+                callback_data=callback_data,
+            )
+        )
+
+    builder.row(*row)
+
+    # Кнопка ручного ввода количества
+    manual_callback_data = f"order_quantity_manual:{product_id}:{size}"
+    if color:
+        manual_callback_data += f":{color}"
+
+    builder.row(
+        InlineKeyboardButton(
+            text="✏️ Ввести количество вручную",
+            callback_data=manual_callback_data,
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data="back")
+    )
+
+    return builder.as_markup()
+
+
 def get_contact_request_keyboard() -> ReplyKeyboardMarkup:
     """Клавиатура запроса контакта.
 
@@ -119,6 +168,36 @@ def get_order_confirmation_keyboard(product_id: int, size: str) -> InlineKeyboar
         InlineKeyboardButton(
             text="❌ Отменить",
             callback_data="order_cancel",
+        )
+    )
+
+    return builder.as_markup()
+
+
+def get_order_completed_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура после успешного оформления заказа.
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🛒 Заказать еще",
+            callback_data="catalog",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="📋 Мои заказы",
+            callback_data="my_orders",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="🏠 Главное меню",
+            callback_data="back_to_menu",
         )
     )
 
@@ -201,10 +280,11 @@ def get_admin_orders_filters_keyboard(current_filter: str = "all") -> InlineKeyb
     filters = [
         ("📋 Все", "all"),
         ("🆕 Новые", "new"),
-        ("⏳ В обработке", "processing"),
+        ("✔️ Подтверждённые", "confirmed"),
         ("💰 Оплачены", "paid"),
         ("📦 Отправлены", "shipped"),
-        ("✅ Выполнены", "completed"),
+        ("🚚 Доставлены", "delivered"),
+        ("✅ Завершённые", "completed"),
         ("❌ Отменённые", "cancelled"),
     ]
 
@@ -247,10 +327,11 @@ def get_order_actions_keyboard(order_id: int, current_status: str) -> InlineKeyb
 
     # Возможные переходы статусов
     status_transitions = {
-        "new": [("⏳ В обработку", "processing"), ("❌ Отменить", "cancelled")],
-        "processing": [("💰 Оплачен", "paid"), ("❌ Отменить", "cancelled")],
+        "new": [("✔️ Подтвердить", "confirmed"), ("❌ Отменить", "cancelled")],
+        "confirmed": [("💰 Оплачен", "paid"), ("❌ Отменить", "cancelled")],
         "paid": [("📦 Отправлен", "shipped")],
-        "shipped": [("✅ Выполнен", "completed")],
+        "shipped": [("🚚 Доставлен", "delivered")],
+        "delivered": [("✅ Завершён", "completed")],
     }
 
     # Кнопки смены статуса
@@ -262,6 +343,34 @@ def get_order_actions_keyboard(order_id: int, current_status: str) -> InlineKeyb
                     callback_data=f"admin_order_status:{order_id}:{new_status}",
                 )
             )
+
+    # Кнопки для редактирования и общения (если заказ не завершён и не отменён)
+    if current_status not in ["completed", "cancelled"]:
+        # Кнопка редактирования заказа (только для new и confirmed)
+        if current_status in ["new", "confirmed"]:
+            builder.row(
+                InlineKeyboardButton(
+                    text="✏️ Редактировать заказ",
+                    callback_data=f"admin_order_edit:{order_id}",
+                )
+            )
+
+        # Кнопка отправки реквизитов (только для confirmed)
+        if current_status == "confirmed":
+            builder.row(
+                InlineKeyboardButton(
+                    text="💳 Отправить реквизиты",
+                    callback_data=f"admin_order_send_payment:{order_id}",
+                )
+            )
+
+        # Кнопка чата с клиентом
+        builder.row(
+            InlineKeyboardButton(
+                text="💬 Написать клиенту",
+                callback_data=f"admin_order_chat:{order_id}",
+            )
+        )
 
     # Дополнительные действия
     builder.row(

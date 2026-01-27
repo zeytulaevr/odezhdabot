@@ -5,8 +5,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
 from src.bot.keyboards.main_menu import (
-    get_admin_menu,
-    get_superadmin_menu,
+    get_admin_panel_keyboard,
+    get_superadmin_panel_keyboard,
     get_user_menu,
 )
 from src.core.constants import CallbackPrefix, UserRole
@@ -64,22 +64,36 @@ async def handle_back_button(
         )
         # Определяем меню в зависимости от роли пользователя
         if user.role == UserRole.SUPER_ADMIN:
-            menu_markup = get_superadmin_menu()
-            menu_title = "👑 Супер-админ панель"
+            menu_markup = get_superadmin_panel_keyboard()
+            menu_title = "👑 <b>Супер-админ панель</b>"
+            menu_text = (
+                f"{menu_title}\n\n"
+                f"Добро пожаловать, <b>{user.full_name}</b>!\n"
+                f"Роль: <code>{user.role}</code>\n\n"
+                f"У вас полный доступ ко всем функциям бота.\n\n"
+                f"Выберите действие:"
+            )
         elif user.role == UserRole.ADMIN:
-            menu_markup = get_admin_menu()
-            menu_title = "👨‍💼 Админ-панель"
+            menu_markup = get_admin_panel_keyboard()
+            menu_title = "👨‍💼 <b>Админ-панель</b>"
+            menu_text = (
+                f"{menu_title}\n\n"
+                f"Добро пожаловать, <b>{user.full_name}</b>!\n"
+                f"Роль: <code>{user.role}</code>\n\n"
+                f"Выберите действие:"
+            )
         else:
             menu_markup = get_user_menu()
-            menu_title = "🏠 Главное меню"
-
-        # Показываем главное меню с клавиатурой
-        await callback.message.edit_text(
-            text=(
+            menu_title = "🏠 <b>Главное меню</b>"
+            menu_text = (
                 f"{menu_title}\n\n"
                 "История навигации пуста.\n"
                 "Выберите действие из меню ниже."
-            ),
+            )
+
+        # Показываем главное меню с клавиатурой
+        await callback.message.edit_text(
+            text=menu_text,
             reply_markup=menu_markup,
             parse_mode="HTML",
         )

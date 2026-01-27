@@ -7,8 +7,15 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # =======================
 # Главное меню пользователя
 # =======================
-def get_user_menu() -> InlineKeyboardMarkup:
-    """Главное меню для обычного пользователя (inline)."""
+def get_user_menu(cart_items_count: int = 0) -> InlineKeyboardMarkup:
+    """Главное меню для обычного пользователя (inline).
+
+    Args:
+        cart_items_count: Количество товаров в корзине
+
+    Returns:
+        Inline клавиатура
+    """
     builder = InlineKeyboardBuilder()
 
     # Первый ряд
@@ -17,7 +24,21 @@ def get_user_menu() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🛍 Мои заказы", callback_data="my_orders"),
     )
 
-    # Второй ряд
+    # Второй ряд - Корзина
+    cart_text = "🛒 Корзина"
+    if cart_items_count > 0:
+        cart_text += f" ({cart_items_count})"
+
+    builder.row(
+        InlineKeyboardButton(text=cart_text, callback_data="cart_view"),
+    )
+
+    # Третий ряд - Бонусы
+    builder.row(
+        InlineKeyboardButton(text="🎁 Мои бонусы", callback_data="user:bonuses"),
+    )
+
+    # Четвёртый ряд
     builder.row(
         InlineKeyboardButton(text="ℹ️ Помощь", callback_data="user:help"),
     )
@@ -109,6 +130,11 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="👤 Пользователи", callback_data="admin:users"),
     )
 
+    # Четвёртый ряд - Помощь
+    builder.row(
+        InlineKeyboardButton(text="ℹ️ Помощь", callback_data="admin:help"),
+    )
+
     return builder.as_markup()
 
 
@@ -151,6 +177,11 @@ def get_superadmin_panel_keyboard() -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(text="👤 Пользователи", callback_data="superadmin:users"),
         InlineKeyboardButton(text="⚙️ Настройки", callback_data="superadmin:settings"),
+    )
+
+    # Шестой ряд - Помощь
+    builder.row(
+        InlineKeyboardButton(text="ℹ️ Помощь", callback_data="superadmin:help"),
     )
 
     return builder.as_markup()
