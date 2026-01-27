@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.logging import get_logger
 from src.database.models.order import Order, OrderItem
@@ -179,7 +180,13 @@ class OrderService:
             Заказ или None
         """
         result = await self.session.execute(
-            select(Order).where(Order.id == order_id)
+            select(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product),
+                selectinload(Order.user),
+                selectinload(Order.messages),
+            )
+            .where(Order.id == order_id)
         )
         return result.scalar_one_or_none()
 
@@ -214,6 +221,7 @@ class OrderService:
                 order.admin_notes = admin_notes
 
         await self.session.flush()
+        await self.session.refresh(order)
 
         logger.info(
             "Order status updated",
@@ -268,6 +276,11 @@ class OrderService:
         """
         result = await self.session.execute(
             select(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product),
+                selectinload(Order.user),
+                selectinload(Order.messages),
+            )
             .where(Order.user_id == user_id)
             .order_by(Order.created_at.desc())
             .limit(limit)
@@ -293,6 +306,11 @@ class OrderService:
         """
         result = await self.session.execute(
             select(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product),
+                selectinload(Order.user),
+                selectinload(Order.messages),
+            )
             .where(Order.status == status)
             .order_by(Order.created_at.desc())
             .limit(limit)
@@ -327,6 +345,11 @@ class OrderService:
         """
         result = await self.session.execute(
             select(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product),
+                selectinload(Order.user),
+                selectinload(Order.messages),
+            )
             .order_by(Order.created_at.desc())
             .limit(limit)
             .offset(offset)
@@ -389,6 +412,7 @@ class OrderService:
             order.admin_notes = note
 
         await self.session.flush()
+        await self.session.refresh(order)
 
         logger.info("Admin note added to order", order_id=order_id)
 
