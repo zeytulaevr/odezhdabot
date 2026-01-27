@@ -656,28 +656,6 @@ async def confirm_contact_no_checkout(
     await callback.answer()
 
 
-@router.message(CheckoutStates.ENTER_CONTACT, F.text)
-async def process_manual_contact_checkout(
-    message: Message,
-    session: AsyncSession,
-    state: FSMContext,
-    user: User,
-) -> None:
-    """Обработка контакта введенного вручную для checkout.
-
-    Этот хендлер для обработки текста когда пользователь НЕ нажал "✏️ Ввести вручную".
-    Он остается для совместимости и обработки других текстовых сообщений.
-
-    Args:
-        message: Message с контактом
-        session: Сессия БД
-        state: FSM контекст
-        user: Пользователь
-    """
-    # Если пользователь написал что-то не нажав кнопку, игнорируем
-    pass
-
-
 async def show_bonus_question_checkout(
     message: Message,
     session: AsyncSession,
@@ -1352,28 +1330,6 @@ async def confirm_contact_no_quick_order(
         parse_mode="HTML",
     )
     await callback.answer()
-
-
-@router.message(QuickOrderStates.ENTER_CONTACT, F.text)
-async def process_manual_contact_quick_order(
-    message: Message,
-    session: AsyncSession,
-    state: FSMContext,
-    user: User,
-) -> None:
-    """Обработка контакта введенного вручную для быстрого заказа.
-
-    Этот хендлер для обработки текста когда пользователь НЕ нажал "✏️ Ввести вручную".
-    Он остается для совместимости и обработки других текстовых сообщений.
-
-    Args:
-        message: Message с контактом
-        session: Сессия БД
-        state: FSM контекст
-        user: Пользователь
-    """
-    # Если пользователь написал что-то не нажав кнопку, игнорируем
-    pass
 
 
 async def show_bonus_question_quick_order(
