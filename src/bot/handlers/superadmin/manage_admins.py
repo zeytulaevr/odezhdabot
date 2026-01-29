@@ -99,21 +99,46 @@ async def cmd_admins(message: Message, session: AsyncSession) -> None:
 
     if not admins:
         text += "Список администраторов пуст.\n\n"
+        await message.answer(
+            text=text,
+            reply_markup=get_admin_list_keyboard(),
+            parse_mode="HTML",
+        )
     else:
         text += f"Всего администраторов: {len(admins)}\n\n"
+        text += "Нажмите на администратора для управления:"
+
+        # Создаем клавиатуру со списком админов
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+
         for admin in admins:
             role_emoji = "👑" if admin.is_super_admin else "👤" if admin.role == UserRole.ADMIN.value else "🛡"
-            username_str = f"@{admin.username}" if admin.username else "без username"
-            text += f"{role_emoji} <b>{admin.full_name}</b>\n"
-            text += f"├ ID: <code>{admin.telegram_id}</code>\n"
-            text += f"├ Username: {username_str}\n"
-            text += f"└ Роль: {format_role_name(admin.role)}\n\n"
+            username_str = f"@{admin.username}" if admin.username else ""
+            button_text = f"{role_emoji} {admin.full_name} {username_str}"
+            builder.row(
+                InlineKeyboardButton(
+                    text=button_text,
+                    callback_data=f"admins:view:{admin.id}"
+                )
+            )
 
-    await message.answer(
-        text=text,
-        reply_markup=get_admin_list_keyboard(),
-        parse_mode="HTML",
-    )
+        # Добавляем кнопки управления
+        builder.row(
+            InlineKeyboardButton(text="➕ Добавить админа", callback_data="admins:add")
+        )
+        builder.row(
+            InlineKeyboardButton(text="🔄 Обновить список", callback_data="admins:list")
+        )
+        builder.row(
+            InlineKeyboardButton(text="◀️ Назад", callback_data="superadmin:settings")
+        )
+
+        await message.answer(
+            text=text,
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML",
+        )
 
 
 @router.callback_query(F.data == "admins:list", IsSuperAdmin())
@@ -128,21 +153,46 @@ async def show_admins_list(callback: CallbackQuery, session: AsyncSession) -> No
 
     if not admins:
         text += "Список администраторов пуст.\n\n"
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=get_admin_list_keyboard(),
+            parse_mode="HTML",
+        )
     else:
         text += f"Всего администраторов: {len(admins)}\n\n"
+        text += "Нажмите на администратора для управления:"
+
+        # Создаем клавиатуру со списком админов
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+
         for admin in admins:
             role_emoji = "👑" if admin.is_super_admin else "👤" if admin.role == UserRole.ADMIN.value else "🛡"
-            username_str = f"@{admin.username}" if admin.username else "без username"
-            text += f"{role_emoji} <b>{admin.full_name}</b>\n"
-            text += f"├ ID: <code>{admin.telegram_id}</code>\n"
-            text += f"├ Username: {username_str}\n"
-            text += f"└ Роль: {format_role_name(admin.role)}\n\n"
+            username_str = f"@{admin.username}" if admin.username else ""
+            button_text = f"{role_emoji} {admin.full_name} {username_str}"
+            builder.row(
+                InlineKeyboardButton(
+                    text=button_text,
+                    callback_data=f"admins:view:{admin.id}"
+                )
+            )
 
-    await callback.message.edit_text(
-        text=text,
-        reply_markup=get_admin_list_keyboard(),
-        parse_mode="HTML",
-    )
+        # Добавляем кнопки управления
+        builder.row(
+            InlineKeyboardButton(text="➕ Добавить админа", callback_data="admins:add")
+        )
+        builder.row(
+            InlineKeyboardButton(text="🔄 Обновить список", callback_data="admins:list")
+        )
+        builder.row(
+            InlineKeyboardButton(text="◀️ Назад", callback_data="superadmin:settings")
+        )
+
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML",
+        )
 
 
 @router.callback_query(F.data == "admins:add", IsSuperAdmin())
@@ -376,6 +426,69 @@ async def change_admin_role(callback: CallbackQuery, session: AsyncSession) -> N
         text=text,
         reply_markup=get_role_selection_keyboard(user_id),
         parse_mode="HTML",
+    )
+
+
+@router.callback_query(
+    IsSuperAdmin(),
+    F.data.startswith("admins:set_role:"),
+    ~AddAdminStates.WAITING_ROLE,
+)
+async def change_existing_admin_role(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Изменить роль существующего администратора (без FSM)."""
+    await callback.answer()
+
+    parts = callback.data.split(":")
+    target_user_id = int(parts[2])
+    new_role = parts[3]
+
+    user_repo = UserRepository(session)
+    target_user = await user_repo.get_by_id(target_user_id)
+
+    if not target_user:
+        await callback.message.edit_text("❌ Пользователь не найден")
+        return
+
+    if target_user.is_super_admin:
+        await callback.answer(
+            "⚠️ Нельзя изменить роль супер-администратора",
+            show_alert=True,
+        )
+        return
+
+    # Назначаем роль
+    old_role = target_user.role
+    role_value = UserRole.ADMIN.value if new_role == "admin" else UserRole.MODERATOR.value
+    target_user.role = role_value
+    await session.commit()
+    await session.refresh(target_user)
+
+    username_str = f"@{target_user.username}" if target_user.username else "без username"
+    text = (
+        f"✅ <b>Роль успешно изменена!</b>\n\n"
+        f"Пользователь: <b>{target_user.full_name}</b>\n"
+        f"ID: <code>{target_user.telegram_id}</code>\n"
+        f"Username: {username_str}\n\n"
+        f"Старая роль: {format_role_name(old_role)}\n"
+        f"Новая роль: {format_role_name(role_value)}"
+    )
+
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_admin_actions_keyboard(target_user_id),
+        parse_mode="HTML",
+    )
+
+    logger.info(
+        "Admin role changed",
+        target_user_id=target_user.id,
+        old_role=old_role,
+        new_role=role_value,
+        by_user_id=user.id,
     )
 
 
