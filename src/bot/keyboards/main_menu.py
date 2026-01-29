@@ -38,7 +38,12 @@ def get_user_menu(cart_items_count: int = 0) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🎁 Мои бонусы", callback_data="user:bonuses"),
     )
 
-    # Четвёртый ряд
+    # Четвёртый ряд - Связаться с админом
+    builder.row(
+        InlineKeyboardButton(text="💬 Связаться с администратором", callback_data="support:start"),
+    )
+
+    # Пятый ряд - Помощь
     builder.row(
         InlineKeyboardButton(text="ℹ️ Помощь", callback_data="user:help"),
     )
@@ -124,13 +129,19 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="━━━━━━━━━━━━━━━", callback_data="separator"),
     )
 
-    # Третий ряд - Статистика и Пользователи
+    # Третий ряд - Товары
+    builder.row(
+        InlineKeyboardButton(text="📦 Товары", callback_data="admin:products"),
+        InlineKeyboardButton(text="➕ Добавить товар", callback_data="prod_add_dialog"),
+    )
+
+    # Четвертый ряд - Статистика и Пользователи
     builder.row(
         InlineKeyboardButton(text="📊 Статистика", callback_data="admin:stats"),
         InlineKeyboardButton(text="👤 Пользователи", callback_data="admin:users"),
     )
 
-    # Четвёртый ряд - Помощь
+    # Пятый ряд - Помощь
     builder.row(
         InlineKeyboardButton(text="ℹ️ Помощь", callback_data="admin:help"),
     )

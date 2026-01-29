@@ -92,8 +92,28 @@ async def handle_back_button(
             )
 
         # Показываем главное меню с клавиатурой
-        await callback.message.edit_text(
-            text=menu_text,
-            reply_markup=menu_markup,
-            parse_mode="HTML",
-        )
+        # Проверяем, есть ли фото в сообщении
+        from aiogram.exceptions import TelegramBadRequest
+        if callback.message.photo:
+            # Если есть фото, удаляем сообщение и отправляем новое
+            try:
+                await callback.message.delete()
+                await callback.message.answer(
+                    text=menu_text,
+                    reply_markup=menu_markup,
+                    parse_mode="HTML",
+                )
+            except TelegramBadRequest:
+                # Если не удалось удалить, просто отправляем новое
+                await callback.message.answer(
+                    text=menu_text,
+                    reply_markup=menu_markup,
+                    parse_mode="HTML",
+                )
+        else:
+            # Обычное редактирование текста
+            await callback.message.edit_text(
+                text=menu_text,
+                reply_markup=menu_markup,
+                parse_mode="HTML",
+            )

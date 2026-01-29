@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.bot.filters.role import IsSuperAdmin
+from src.bot.filters.role import IsSuperAdmin, IsAdmin
 from src.bot.keyboards.products import (
     get_confirm_delete_keyboard,
     get_product_actions_keyboard,
@@ -34,8 +34,8 @@ async def noop_handler(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
-@router.message(Command("products"), IsSuperAdmin())
-@router.callback_query(F.data == "products_menu", IsSuperAdmin())
+@router.message(Command("products"), IsAdmin())
+@router.callback_query(F.data == "products_menu", IsAdmin())
 async def products_menu(
     event: Message | CallbackQuery,
     user: User,
@@ -63,8 +63,8 @@ async def products_menu(
         await event.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
 
-@router.callback_query(F.data == "products_list", IsSuperAdmin())
-@router.callback_query(F.data.startswith("prod_page:"), IsSuperAdmin())
+@router.callback_query(F.data == "products_list", IsAdmin())
+@router.callback_query(F.data.startswith("prod_page:"), IsAdmin())
 async def products_list(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -108,7 +108,7 @@ async def products_list(
     )
 
 
-@router.callback_query(F.data.startswith("prod_view:"), IsSuperAdmin())
+@router.callback_query(F.data.startswith("prod_view:"), IsAdmin())
 async def view_product(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -168,7 +168,7 @@ async def view_product(
         )
 
 
-@router.callback_query(F.data.startswith("prod_publish:"), IsSuperAdmin())
+@router.callback_query(F.data.startswith("prod_publish:"), IsAdmin())
 async def publish_product(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -200,7 +200,7 @@ async def publish_product(
         await callback.answer(f"❌ Ошибка: {str(e)}", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("prod_activate:"), IsSuperAdmin())
+@router.callback_query(F.data.startswith("prod_activate:"), IsAdmin())
 async def activate_product(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -216,7 +216,7 @@ async def activate_product(
     await view_product(callback, session, state)
 
 
-@router.callback_query(F.data.startswith("prod_deactivate:"), IsSuperAdmin())
+@router.callback_query(F.data.startswith("prod_deactivate:"), IsAdmin())
 async def deactivate_product(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -232,7 +232,7 @@ async def deactivate_product(
     await view_product(callback, session, state)
 
 
-@router.callback_query(F.data.startswith("prod_delete:"), IsSuperAdmin())
+@router.callback_query(F.data.startswith("prod_delete:"), IsAdmin())
 async def delete_product_confirm(
     callback: CallbackQuery,
     state: FSMContext,
@@ -263,7 +263,7 @@ async def delete_product_confirm(
         )
 
 
-@router.callback_query(F.data.startswith("prod_delete_confirm:"), IsSuperAdmin())
+@router.callback_query(F.data.startswith("prod_delete_confirm:"), IsAdmin())
 async def delete_product(
     callback: CallbackQuery,
     session: AsyncSession,

@@ -15,6 +15,38 @@ logger = get_logger(__name__)
 router = Router(name="user_order_chat")
 
 
+@router.message(F.reply_to_message, F.text)
+async def handle_non_media_reply_to_payment(
+    message: Message,
+    user: User,
+) -> None:
+    """Обработать текстовый ответ на сообщение с реквизитами.
+
+    Если пользователь отправляет текст вместо чека, просим отправить скриншот.
+
+    Args:
+        message: Message с текстом
+        user: Пользователь
+    """
+    # Проверяем, что это ответ на сообщение от бота
+    if not message.reply_to_message or not message.reply_to_message.from_user.is_bot:
+        return
+
+    replied_text = message.reply_to_message.text or message.reply_to_message.caption or ""
+
+    # Проверяем что это сообщение с реквизитами
+    if "Реквизиты для оплаты" in replied_text or "реквизиты" in replied_text.lower() or "оплат" in replied_text.lower():
+        await message.answer(
+            "📸 <b>Нужен скриншот чека</b>\n\n"
+            "Пожалуйста, отправьте <b>фото или скриншот</b> чека об оплате, "
+            "а не текстовое сообщение.\n\n"
+            "💡 <i>Просто сделайте скриншот подтверждения оплаты "
+            "и отправьте его как фото (Reply на сообщение с реквизитами).</i>",
+            parse_mode="HTML",
+        )
+        return
+
+
 @router.message(F.reply_to_message, F.photo)
 async def handle_payment_receipt(
     message: Message,

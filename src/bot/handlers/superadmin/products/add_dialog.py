@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.bot.filters.role import IsSuperAdmin
+from src.bot.filters.role import IsSuperAdmin, IsAdmin
 from src.bot.keyboards.products import get_categories_keyboard
 from src.core.logging import get_logger
 from src.database.models.user import User
@@ -36,7 +36,7 @@ class AddProductStates(StatesGroup):
     PREVIEW = State()
 
 
-@router.callback_query(F.data == "prod_add_dialog", IsSuperAdmin())
+@router.callback_query(F.data == "prod_add_dialog", IsAdmin())
 async def start_add_product(
     callback: CallbackQuery,
     state: FSMContext,
@@ -62,7 +62,7 @@ async def start_add_product(
     await state.set_state(AddProductStates.MEDIA)
 
 
-@router.message(IsSuperAdmin(), AddProductStates.MEDIA, F.photo | F.video)
+@router.message(IsAdmin(), AddProductStates.MEDIA, F.photo | F.video)
 async def process_media(
     message: Message,
     state: FSMContext,
@@ -95,7 +95,7 @@ async def process_media(
     await message.answer(text, parse_mode="HTML")
 
 
-@router.message(IsSuperAdmin(), AddProductStates.MEDIA, Command("done"))
+@router.message(IsAdmin(), AddProductStates.MEDIA, Command("done"))
 async def media_done(
     message: Message,
     state: FSMContext,
@@ -118,7 +118,7 @@ async def media_done(
     await state.set_state(AddProductStates.NAME)
 
 
-@router.message(IsSuperAdmin(), AddProductStates.NAME, F.text)
+@router.message(IsAdmin(), AddProductStates.NAME, F.text)
 async def process_name(
     message: Message,
     state: FSMContext,
@@ -142,7 +142,7 @@ async def process_name(
     await state.set_state(AddProductStates.DESCRIPTION)
 
 
-@router.message(IsSuperAdmin(), AddProductStates.DESCRIPTION, F.text)
+@router.message(IsAdmin(), AddProductStates.DESCRIPTION, F.text)
 async def process_description(
     message: Message,
     state: FSMContext,
@@ -162,7 +162,7 @@ async def process_description(
     await state.set_state(AddProductStates.PRICE)
 
 
-@router.message(IsSuperAdmin(), AddProductStates.PRICE, F.text)
+@router.message(IsAdmin(), AddProductStates.PRICE, F.text)
 async def process_price(
     message: Message,
     state: FSMContext,
@@ -195,7 +195,7 @@ async def process_price(
     await state.set_state(AddProductStates.SIZES)
 
 
-@router.message(IsSuperAdmin(), AddProductStates.SIZES, F.text)
+@router.message(IsAdmin(), AddProductStates.SIZES, F.text)
 async def process_sizes(
     message: Message,
     state: FSMContext,
@@ -221,7 +221,7 @@ async def process_sizes(
     await state.set_state(AddProductStates.COLORS)
 
 
-@router.message(IsSuperAdmin(), AddProductStates.COLORS, F.text)
+@router.message(IsAdmin(), AddProductStates.COLORS, F.text)
 async def process_colors(
     message: Message,
     state: FSMContext,
@@ -247,7 +247,7 @@ async def process_colors(
     await state.set_state(AddProductStates.FIT)
 
 
-@router.message(IsSuperAdmin(), AddProductStates.FIT, F.text)
+@router.message(IsAdmin(), AddProductStates.FIT, F.text)
 async def process_fit(
     message: Message,
     state: FSMContext,
@@ -279,7 +279,7 @@ async def process_fit(
     await state.set_state(AddProductStates.CATEGORY)
 
 
-@router.callback_query(IsSuperAdmin(), AddProductStates.CATEGORY, F.data.startswith("cat:"))
+@router.callback_query(IsAdmin(), AddProductStates.CATEGORY, F.data.startswith("cat:"))
 async def process_category(
     callback: CallbackQuery,
     state: FSMContext,

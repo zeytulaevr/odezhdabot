@@ -189,8 +189,25 @@ async def process_admin_callback(
             )
         return
 
+    # Товары - показываем меню управления товарами
+    if action == "products":
+        from src.bot.keyboards.products import get_products_menu_keyboard
+        text = (
+            "🛍 <b>Управление товарами</b>\n\n"
+            "Выберите действие:"
+        )
+        keyboard = get_products_menu_keyboard()
+        if callback.message:
+            await edit_message_with_navigation(
+                callback=callback,
+                state=state,
+                text=text,
+                markup=keyboard,
+            )
+        return
+
     # Заказы - показываем фильтры заказов
-    if action == "orders":
+    elif action == "orders":
         from src.bot.keyboards.orders import get_admin_orders_filters_keyboard
         text = (
             "📋 <b>Управление заказами</b>\n\n"
