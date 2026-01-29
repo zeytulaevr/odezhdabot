@@ -2,6 +2,7 @@
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.core.config import settings
 from src.core.logging import get_logger
@@ -34,6 +35,36 @@ class NotificationService:
         "completed": "Завершён",
         "cancelled": "Отменён",
     }
+
+    @staticmethod
+    def get_admin_order_keyboard(order_id: int) -> InlineKeyboardMarkup:
+        """Создать клавиатуру для уведомления админа о заказе.
+
+        Args:
+            order_id: ID заказа
+
+        Returns:
+            InlineKeyboardMarkup с кнопками
+        """
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+        builder = InlineKeyboardBuilder()
+
+        # Кнопки действий с заказом
+        builder.row(
+            InlineKeyboardButton(
+                text="📋 Посмотреть заказ",
+                callback_data=f"admin_order_view:{order_id}",
+            )
+        )
+        builder.row(
+            InlineKeyboardButton(
+                text="💬 Связаться с клиентом",
+                callback_data=f"admin_order_chat:{order_id}",
+            )
+        )
+
+        return builder.as_markup()
 
     @staticmethod
     async def notify_admins_new_order(bot: Bot, order: Order) -> int:
@@ -78,6 +109,9 @@ class NotificationService:
         # Объединяем всё
         full_text = header + items_text + footer
 
+        # Создаем клавиатуру с кнопками
+        keyboard = NotificationService.get_admin_order_keyboard(order.id)
+
         # Проверяем длину сообщения (лимит Telegram - 4096 символов)
         MAX_MESSAGE_LENGTH = 4096
 
@@ -91,6 +125,7 @@ class NotificationService:
                     await bot.send_message(
                         chat_id=admin_id,
                         text=full_text,
+                        reply_markup=keyboard,
                         parse_mode="HTML",
                     )
                 else:
@@ -106,6 +141,7 @@ class NotificationService:
                     await bot.send_message(
                         chat_id=admin_id,
                         text=summary,
+                        reply_markup=keyboard,
                         parse_mode="HTML",
                     )
 

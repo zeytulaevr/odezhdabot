@@ -137,9 +137,6 @@ def get_contact_request_keyboard() -> ReplyKeyboardMarkup:
         KeyboardButton(text="📞 Поделиться номером", request_contact=True)
     )
     builder.row(
-        KeyboardButton(text="✏️ Ввести вручную")
-    )
-    builder.row(
         KeyboardButton(text="❌ Отменить")
     )
 

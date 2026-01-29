@@ -101,21 +101,20 @@ def setup_handlers(dp: Dispatcher) -> None:
         dp: Диспетчер
     """
     # Регистрация роутеров в порядке приоритета
-    # Сначала общие хендлеры (help, start)
+    # ВАЖНО: роутеры с более строгими фильтрами должны быть первыми!
+
+    # Сначала общие хендлеры (help, etc)
     dp.include_router(common.router)
-    dp.include_router(user.router)
 
-    # Затем хендлеры с проверкой ролей
-    dp.include_router(superadmin.router)
-    dp.include_router(admin.router)
+    # Затем хендлеры с проверкой ролей (от более строгих к менее строгим)
+    dp.include_router(superadmin.router)  # Самый строгий фильтр
+    dp.include_router(admin.router)       # Средний фильтр
 
-    # Модерация каналов (важно подключить после авторизации)
+    # Модерация каналов
     dp.include_router(moderation.router)
 
-    # Здесь можно добавить другие роутеры:
-    # dp.include_router(catalog.router)
-    # dp.include_router(cart.router)
-    # dp.include_router(orders.router)
+    # В конце - пользовательские хендлеры (самый общий фильтр)
+    dp.include_router(user.router)
 
     logger.info("Handlers configured")
 

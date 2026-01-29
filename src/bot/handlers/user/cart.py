@@ -29,6 +29,8 @@ class CheckoutStates(StatesGroup):
     """Состояния оформления заказа из корзины."""
 
     ENTER_CONTACT = State()
+    CONFIRM_CONTACT = State()
+    USE_BONUSES = State()
     CONFIRM = State()
 
 
@@ -36,6 +38,8 @@ class QuickOrderStates(StatesGroup):
     """Состояния быстрого заказа товара."""
 
     ENTER_CONTACT = State()
+    CONFIRM_CONTACT = State()
+    USE_BONUSES = State()
     CONFIRM = State()
 
 
@@ -446,6 +450,7 @@ async def process_checkout_contact_shared(
     message: Message,
     session: AsyncSession,
     state: FSMContext,
+    user: User,
 ) -> None:
     """Обработка переданного контакта через RequestContact для checkout.
 
@@ -453,6 +458,7 @@ async def process_checkout_contact_shared(
         message: Message с контактом
         session: Сессия БД
         state: FSM контекст
+        user: Пользователь
     """
     contact = message.contact
     phone = contact.phone_number
@@ -460,8 +466,8 @@ async def process_checkout_contact_shared(
     # Сохраняем контакт
     await state.update_data(customer_contact=phone)
 
-    # Переходим к подтверждению
-    await show_checkout_confirmation(message, session, state)
+    # Показываем вопрос про бонусы
+    await show_bonus_question_checkout(message, session, state, user)
 
 
 @router.message(CheckoutStates.ENTER_CONTACT, F.text == "✏️ Ввести вручную")
@@ -489,6 +495,9 @@ async def request_manual_contact_checkout(
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="HTML",
     )
+
+    # Меняем состояние для ожидания ввода
+    await state.set_state(CheckoutStates.CONFIRM_CONTACT)
 
 
 @router.message(CheckoutStates.ENTER_CONTACT, F.text == "❌ Отменить")
@@ -529,32 +538,197 @@ async def cancel_checkout(
     logger.info("Checkout cancelled", user_id=message.from_user.id)
 
 
-@router.message(CheckoutStates.ENTER_CONTACT, F.text)
-async def process_manual_contact_checkout(
+@router.message(CheckoutStates.CONFIRM_CONTACT, F.text)
+async def validate_manual_contact_checkout(
     message: Message,
-    session: AsyncSession,
     state: FSMContext,
 ) -> None:
-    """Обработка контакта введенного вручную для checkout.
+    """Валидация и запрос подтверждения контакта для checkout.
 
     Args:
         message: Message с контактом
-        session: Сессия БД
         state: FSM контекст
     """
+    import re
+
     contact = message.text.strip()
 
-    if len(contact) < 5:
+    # Валидация контакта
+    is_phone = bool(re.match(r"^\+?\d{10,15}$", contact.replace(" ", "").replace("-", "")))
+    is_username = bool(re.match(r"^@[a-zA-Z0-9_]{5,32}$", contact))
+    is_email = bool(re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", contact))
+
+    if not (is_phone or is_username or is_email):
         await message.answer(
-            "❌ Контакт слишком короткий. Введите корректный номер телефона, username или email."
+            "❌ <b>Некорректный формат контакта</b>\n\n"
+            "Пожалуйста, введите контакт в одном из форматов:\n"
+            "• Телефон: +79001234567\n"
+            "• Username: @username\n"
+            "• Email: email@example.com",
+            parse_mode="HTML",
         )
         return
 
-    # Сохраняем контакт
+    # Сохраняем контакт временно
+    await state.update_data(pending_contact=contact)
+
+    # Запрашиваем подтверждение
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Да, всё верно",
+            callback_data="confirm_contact_yes",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="✏️ Изменить",
+            callback_data="confirm_contact_no",
+        )
+    )
+
+    contact_type = "телефон" if is_phone else ("username" if is_username else "email")
+
+    await message.answer(
+        f"📝 <b>Проверьте контакт</b>\n\n"
+        f"Ваш {contact_type}: <code>{contact}</code>\n\n"
+        f"Всё верно?",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data == "confirm_contact_yes", CheckoutStates.CONFIRM_CONTACT)
+async def confirm_contact_yes_checkout(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Подтверждение контакта для checkout.
+
+    Args:
+        callback: CallbackQuery
+        session: Сессия БД
+        state: FSM контекст
+        user: Пользователь
+    """
+    data = await state.get_data()
+    contact = data.get("pending_contact")
+
+    if not contact:
+        await callback.answer("❌ Контакт не найден", show_alert=True)
+        return
+
+    # Сохраняем подтвержденный контакт
     await state.update_data(customer_contact=contact)
 
-    # Переходим к подтверждению
-    await show_checkout_confirmation(message, session, state)
+    await callback.message.delete()
+
+    # Переходим к вопросу про бонусы
+    await show_bonus_question_checkout(callback.message, session, state, user)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "confirm_contact_no", CheckoutStates.CONFIRM_CONTACT)
+async def confirm_contact_no_checkout(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Отклонение контакта - запрос повторного ввода для checkout.
+
+    Args:
+        callback: CallbackQuery
+        state: FSM контекст
+    """
+    await callback.message.edit_text(
+        "✏️ <b>Ввод контакта</b>\n\n"
+        "Введите ваш контакт для связи:\n"
+        "• Телефон: +79001234567\n"
+        "• Username: @username\n"
+        "• Email: email@example.com\n\n"
+        "Или нажмите /cancel для отмены",
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+async def show_bonus_question_checkout(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Показать вопрос об использовании бонусов для checkout.
+
+    Args:
+        message: Message
+        session: Сессия БД
+        state: FSM контекст
+        user: Пользователь
+    """
+    # Проверяем баланс бонусов
+    if user.bonus_balance <= 0:
+        # Нет бонусов - сразу к подтверждению
+        await show_checkout_confirmation(message, session, state)
+        return
+
+    # Получаем настройки бонусов
+    from decimal import Decimal
+
+    from src.database.models.bot_settings import BotSettings
+
+    bot_settings = await BotSettings.get_settings(session)
+
+    data = await state.get_data()
+    total_price = data.get("total_price", 0)
+
+    # Рассчитываем максимальную сумму к оплате бонусами
+    max_bonus_amount = Decimal(str(total_price)) * (bot_settings.bonus_max_payment_percent / Decimal("100"))
+    actual_bonus_amount = min(user.bonus_balance, max_bonus_amount)
+
+    if actual_bonus_amount <= 0:
+        # Не можем использовать бонусы
+        await show_checkout_confirmation(message, session, state)
+        return
+
+    text = (
+        f"💰 <b>У вас {float(user.bonus_balance):.2f} бонусов</b>\n\n"
+        f"Сумма заказа: {total_price:.2f} ₽\n\n"
+        f"Вы можете оплатить до {actual_bonus_amount:.2f} ₽ бонусами.\n\n"
+        f"Использовать бонусы?"
+    )
+
+    # Сохраняем доступную сумму бонусов (конвертируем Decimal в float для JSON)
+    await state.update_data(available_bonus_amount=float(actual_bonus_amount))
+
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text=f"✅ Да, использовать {actual_bonus_amount:.2f} ₽",
+            callback_data="use_bonuses_yes",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="❌ Нет, оплачу полностью",
+            callback_data="use_bonuses_no",
+        )
+    )
+
+    await message.answer(
+        text=text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+    await state.set_state(CheckoutStates.USE_BONUSES)
 
 
 async def show_checkout_confirmation(
@@ -600,9 +774,21 @@ async def show_checkout_confirmation(
             text += f"{i}. {item.display_name} × {item.quantity}\n"
             text += f"   💰 {(product.price * item.quantity):,.2f} ₽\n\n"
 
+    # Получаем информацию о бонусах
+    use_bonuses = data.get("use_bonuses", False)
+    bonus_amount = data.get("bonus_amount", 0)
+
     text += f"━━━━━━━━━━━━━━━━\n"
     text += f"📦 Всего: {total_quantity} ед.\n"
-    text += f"💰 <b>Итого: {total_price:,.2f} ₽</b>\n"
+    text += f"💰 Сумма: {total_price:,.2f} ₽\n"
+
+    if use_bonuses and bonus_amount > 0:
+        final_price = total_price - bonus_amount
+        text += f"🎁 Бонусы: -{bonus_amount:.2f} ₽\n"
+        text += f"💳 <b>К оплате: {final_price:.2f} ₽</b>\n"
+    else:
+        text += f"💳 <b>К оплате: {total_price:,.2f} ₽</b>\n"
+
     text += f"📞 Контакт: {contact}\n\n"
     text += "Все верно?"
 
@@ -631,6 +817,56 @@ async def show_checkout_confirmation(
     )
 
     await state.set_state(CheckoutStates.CONFIRM)
+
+
+@router.callback_query(CheckoutStates.USE_BONUSES, F.data == "use_bonuses_yes")
+async def process_use_bonuses_yes_checkout(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Обработка выбора использования бонусов для checkout.
+
+    Args:
+        callback: CallbackQuery
+        session: Сессия БД
+        state: FSM контекст
+    """
+    data = await state.get_data()
+    available_bonus_amount = data.get("available_bonus_amount", 0)
+
+    # Сохраняем решение использовать бонусы
+    await state.update_data(use_bonuses=True, bonus_amount=available_bonus_amount)
+
+    await callback.message.delete()
+
+    # Создаем Message объект из callback для передачи в show_checkout_confirmation
+    message = callback.message
+    await show_checkout_confirmation(message, session, state)
+    await callback.answer()
+
+
+@router.callback_query(CheckoutStates.USE_BONUSES, F.data == "use_bonuses_no")
+async def process_use_bonuses_no_checkout(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Обработка отказа от использования бонусов для checkout.
+
+    Args:
+        callback: CallbackQuery
+        session: Сессия БД
+        state: FSM контекст
+    """
+    # Сохраняем решение НЕ использовать бонусы
+    await state.update_data(use_bonuses=False, bonus_amount=0)
+
+    await callback.message.delete()
+
+    message = callback.message
+    await show_checkout_confirmation(message, session, state)
+    await callback.answer()
 
 
 @router.callback_query(CheckoutStates.CONFIRM, F.data == "checkout_confirm")
@@ -687,12 +923,34 @@ async def confirm_and_create_orders(
             items=items_data,
         )
 
+        # Списываем бонусы если пользователь выбрал их использовать
+        use_bonuses = data.get("use_bonuses", False)
+        bonus_amount = data.get("bonus_amount", 0)
+
+        if use_bonuses and bonus_amount > 0:
+            # Обновляем баланс бонусов
+            user.bonus_balance -= Decimal(str(bonus_amount))
+            # Устанавливаем скидку в заказе
+            order.bonus_discount = Decimal(str(bonus_amount))
+            # Добавляем заметку к заказу о списании бонусов
+            if order.admin_notes:
+                order.admin_notes += f"\n\nСписано бонусов: {bonus_amount:.2f} ₽"
+            else:
+                order.admin_notes = f"Списано бонусов: {bonus_amount:.2f} ₽"
+
+            logger.info(
+                "Bonuses deducted for checkout order",
+                user_id=user.id,
+                order_id=order.id,
+                bonus_amount=bonus_amount,
+            )
+
         await session.commit()
 
-        # Получаем настройки платежей для альтернативного контакта
-        from src.database.models.payment_settings import PaymentSettings
-        payment_settings = await PaymentSettings.get_current_settings(session)
-        alternative_contact = payment_settings.alternative_contact_username if payment_settings else None
+        # Получаем настройки для альтернативного контакта
+        from src.database.models.bot_settings import BotSettings
+        bot_settings = await BotSettings.get_settings(session)
+        alternative_contact = bot_settings.alternative_contact_username
 
         # Уведомляем пользователя о заказе
         await NotificationService.notify_user_order_created(callback.bot, order, alternative_contact)
@@ -870,6 +1128,7 @@ async def process_quick_order_contact_shared(
     message: Message,
     session: AsyncSession,
     state: FSMContext,
+    user: User,
 ) -> None:
     """Обработка переданного контакта для быстрого заказа.
 
@@ -877,6 +1136,7 @@ async def process_quick_order_contact_shared(
         message: Message с контактом
         session: Сессия БД
         state: FSM контекст
+        user: Пользователь
     """
     contact = message.contact
     phone = contact.phone_number
@@ -884,8 +1144,8 @@ async def process_quick_order_contact_shared(
     # Сохраняем контакт
     await state.update_data(customer_contact=phone)
 
-    # Переходим к подтверждению
-    await show_quick_order_confirmation(message, session, state)
+    # Показываем вопрос про бонусы
+    await show_bonus_question_quick_order(message, session, state, user)
 
 
 @router.message(QuickOrderStates.ENTER_CONTACT, F.text == "✏️ Ввести вручную")
@@ -913,6 +1173,9 @@ async def request_manual_contact_quick_order(
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="HTML",
     )
+
+    # Меняем состояние для ожидания ввода
+    await state.set_state(QuickOrderStates.CONFIRM_CONTACT)
 
 
 @router.message(QuickOrderStates.ENTER_CONTACT, F.text == "❌ Отменить")
@@ -953,32 +1216,209 @@ async def cancel_quick_order(
     logger.info("Quick order cancelled", user_id=message.from_user.id)
 
 
-@router.message(QuickOrderStates.ENTER_CONTACT, F.text)
-async def process_manual_contact_quick_order(
+@router.message(QuickOrderStates.CONFIRM_CONTACT, F.text)
+async def validate_manual_contact_quick_order(
     message: Message,
-    session: AsyncSession,
     state: FSMContext,
 ) -> None:
-    """Обработка контакта введенного вручную для быстрого заказа.
+    """Валидация и запрос подтверждения контакта для быстрого заказа.
 
     Args:
         message: Message с контактом
-        session: Сессия БД
         state: FSM контекст
     """
+    import re
+
     contact = message.text.strip()
 
-    if len(contact) < 5:
+    # Валидация контакта
+    is_phone = bool(re.match(r"^\+?\d{10,15}$", contact.replace(" ", "").replace("-", "")))
+    is_username = bool(re.match(r"^@[a-zA-Z0-9_]{5,32}$", contact))
+    is_email = bool(re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", contact))
+
+    if not (is_phone or is_username or is_email):
         await message.answer(
-            "❌ Контакт слишком короткий. Введите корректный номер телефона, username или email."
+            "❌ <b>Некорректный формат контакта</b>\n\n"
+            "Пожалуйста, введите контакт в одном из форматов:\n"
+            "• Телефон: +79001234567\n"
+            "• Username: @username\n"
+            "• Email: email@example.com",
+            parse_mode="HTML",
         )
         return
 
-    # Сохраняем контакт
+    # Сохраняем контакт временно
+    await state.update_data(pending_contact=contact)
+
+    # Запрашиваем подтверждение
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Да, всё верно",
+            callback_data="confirm_contact_yes",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="✏️ Изменить",
+            callback_data="confirm_contact_no",
+        )
+    )
+
+    contact_type = "телефон" if is_phone else ("username" if is_username else "email")
+
+    await message.answer(
+        f"📝 <b>Проверьте контакт</b>\n\n"
+        f"Ваш {contact_type}: <code>{contact}</code>\n\n"
+        f"Всё верно?",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data == "confirm_contact_yes", QuickOrderStates.CONFIRM_CONTACT)
+async def confirm_contact_yes_quick_order(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Подтверждение контакта для быстрого заказа.
+
+    Args:
+        callback: CallbackQuery
+        session: Сессия БД
+        state: FSM контекст
+        user: Пользователь
+    """
+    data = await state.get_data()
+    contact = data.get("pending_contact")
+
+    if not contact:
+        await callback.answer("❌ Контакт не найден", show_alert=True)
+        return
+
+    # Сохраняем подтвержденный контакт
     await state.update_data(customer_contact=contact)
 
-    # Переходим к подтверждению
-    await show_quick_order_confirmation(message, session, state)
+    await callback.message.delete()
+
+    # Переходим к вопросу про бонусы
+    await show_bonus_question_quick_order(callback.message, session, state, user)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "confirm_contact_no", QuickOrderStates.CONFIRM_CONTACT)
+async def confirm_contact_no_quick_order(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Отклонение контакта - запрос повторного ввода для быстрого заказа.
+
+    Args:
+        callback: CallbackQuery
+        state: FSM контекст
+    """
+    await callback.message.edit_text(
+        "✏️ <b>Ввод контакта</b>\n\n"
+        "Введите ваш контакт для связи:\n"
+        "• Телефон: +79001234567\n"
+        "• Username: @username\n"
+        "• Email: email@example.com\n\n"
+        "Или нажмите /cancel для отмены",
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+async def show_bonus_question_quick_order(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+) -> None:
+    """Показать вопрос об использовании бонусов для быстрого заказа.
+
+    Args:
+        message: Message
+        session: Сессия БД
+        state: FSM контекст
+        user: Пользователь
+    """
+    # Проверяем баланс бонусов
+    if user.bonus_balance <= 0:
+        # Нет бонусов - сразу к подтверждению
+        await show_quick_order_confirmation(message, session, state)
+        return
+
+    # Получаем настройки бонусов
+    from src.database.models.bot_settings import BotSettings
+    from src.services.product_service import ProductService
+
+    bot_settings = await BotSettings.get_settings(session)
+
+    data = await state.get_data()
+    product_id = data.get("product_id")
+    quantity = data.get("quantity", 1)
+
+    # Получаем товар для расчета цены
+    product_service = ProductService(session)
+    product = await product_service.get_product(product_id)
+
+    if not product:
+        await show_quick_order_confirmation(message, session, state)
+        return
+
+    from decimal import Decimal
+
+    total_price = float(product.price * quantity)
+
+    # Рассчитываем максимальную сумму к оплате бонусами
+    max_bonus_amount = Decimal(str(total_price)) * (bot_settings.bonus_max_payment_percent / Decimal("100"))
+    actual_bonus_amount = min(user.bonus_balance, max_bonus_amount)
+
+    if actual_bonus_amount <= 0:
+        # Не можем использовать бонусы
+        await show_quick_order_confirmation(message, session, state)
+        return
+
+    text = (
+        f"💰 <b>У вас {float(user.bonus_balance):.2f} бонусов</b>\n\n"
+        f"Сумма заказа: {total_price:.2f} ₽\n\n"
+        f"Вы можете оплатить до {actual_bonus_amount:.2f} ₽ бонусами.\n\n"
+        f"Использовать бонусы?"
+    )
+
+    # Сохраняем доступную сумму бонусов (конвертируем Decimal в float для JSON)
+    await state.update_data(available_bonus_amount=float(actual_bonus_amount), total_price=total_price)
+
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text=f"✅ Да, использовать {actual_bonus_amount:.2f} ₽",
+            callback_data="quick_use_bonuses_yes",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="❌ Нет, оплачу полностью",
+            callback_data="quick_use_bonuses_no",
+        )
+    )
+
+    await message.answer(
+        text=text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+    await state.set_state(QuickOrderStates.USE_BONUSES)
 
 
 async def show_quick_order_confirmation(
@@ -1011,6 +1451,10 @@ async def show_quick_order_confirmation(
 
     total_price = product.price * quantity if product else 0
 
+    # Получаем информацию о бонусах
+    use_bonuses = data.get("use_bonuses", False)
+    bonus_amount = data.get("bonus_amount", 0)
+
     text = (
         "✅ <b>Подтверждение заказа</b>\n\n"
         "Проверьте данные заказа:\n\n"
@@ -1024,7 +1468,18 @@ async def show_quick_order_confirmation(
     text += (
         f"📏 Размер: {size.upper()}\n"
         f"🔢 Количество: {quantity} шт.\n"
-        f"💵 Итого: {total_price:,.2f} ₽\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"💰 Сумма: {total_price:,.2f} ₽\n"
+    )
+
+    if use_bonuses and bonus_amount > 0:
+        final_price = float(total_price) - bonus_amount
+        text += f"🎁 Бонусы: -{bonus_amount:.2f} ₽\n"
+        text += f"💳 <b>К оплате: {final_price:.2f} ₽</b>\n"
+    else:
+        text += f"💳 <b>К оплате: {total_price:,.2f} ₽</b>\n"
+
+    text += (
         f"📞 Контакт: {contact}\n\n"
         "Все верно?"
     )
@@ -1054,6 +1509,55 @@ async def show_quick_order_confirmation(
     )
 
     await state.set_state(QuickOrderStates.CONFIRM)
+
+
+@router.callback_query(QuickOrderStates.USE_BONUSES, F.data == "quick_use_bonuses_yes")
+async def process_use_bonuses_yes_quick_order(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Обработка выбора использования бонусов для быстрого заказа.
+
+    Args:
+        callback: CallbackQuery
+        session: Сессия БД
+        state: FSM контекст
+    """
+    data = await state.get_data()
+    available_bonus_amount = data.get("available_bonus_amount", 0)
+
+    # Сохраняем решение использовать бонусы
+    await state.update_data(use_bonuses=True, bonus_amount=available_bonus_amount)
+
+    await callback.message.delete()
+
+    message = callback.message
+    await show_quick_order_confirmation(message, session, state)
+    await callback.answer()
+
+
+@router.callback_query(QuickOrderStates.USE_BONUSES, F.data == "quick_use_bonuses_no")
+async def process_use_bonuses_no_quick_order(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Обработка отказа от использования бонусов для быстрого заказа.
+
+    Args:
+        callback: CallbackQuery
+        session: Сессия БД
+        state: FSM контекст
+    """
+    # Сохраняем решение НЕ использовать бонусы
+    await state.update_data(use_bonuses=False, bonus_amount=0)
+
+    await callback.message.delete()
+
+    message = callback.message
+    await show_quick_order_confirmation(message, session, state)
+    await callback.answer()
 
 
 @router.callback_query(QuickOrderStates.CONFIRM, F.data == "quick_order_confirm")
@@ -1097,12 +1601,34 @@ async def confirm_and_create_quick_order(
             quantity=quantity,
         )
 
+        # Списываем бонусы если пользователь выбрал их использовать
+        use_bonuses = data.get("use_bonuses", False)
+        bonus_amount = data.get("bonus_amount", 0)
+
+        if use_bonuses and bonus_amount > 0:
+            # Обновляем баланс бонусов
+            user.bonus_balance -= Decimal(str(bonus_amount))
+            # Устанавливаем скидку в заказе
+            order.bonus_discount = Decimal(str(bonus_amount))
+            # Добавляем заметку к заказу о списании бонусов
+            if order.admin_notes:
+                order.admin_notes += f"\n\nСписано бонусов: {bonus_amount:.2f} ₽"
+            else:
+                order.admin_notes = f"Списано бонусов: {bonus_amount:.2f} ₽"
+
+            logger.info(
+                "Bonuses deducted for quick order",
+                user_id=user.id,
+                order_id=order.id,
+                bonus_amount=bonus_amount,
+            )
+
         await session.commit()
 
-        # Получаем настройки платежей для альтернативного контакта
-        from src.database.models.payment_settings import PaymentSettings
-        payment_settings = await PaymentSettings.get_current_settings(session)
-        alternative_contact = payment_settings.alternative_contact_username if payment_settings else None
+        # Получаем настройки для альтернативного контакта
+        from src.database.models.bot_settings import BotSettings
+        bot_settings = await BotSettings.get_settings(session)
+        alternative_contact = bot_settings.alternative_contact_username
 
         # Уведомляем пользователя
         await NotificationService.notify_user_order_created(callback.bot, order, alternative_contact)

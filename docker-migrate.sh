@@ -33,12 +33,15 @@ error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+# Путь к docker-compose файлу
+COMPOSE_FILE="docker/docker-compose.yml"
+
 # Проверка, запущен ли Docker Compose
 check_docker() {
-    if ! docker compose ps | grep -q "bot.*Up"; then
+    if ! docker compose -f "$COMPOSE_FILE" ps | grep -q "bot.*Up"; then
         warning "Контейнер бота не запущен"
         info "Запускаем контейнеры..."
-        docker compose up -d
+        docker compose -f "$COMPOSE_FILE" up -d
         sleep 3
     fi
 }
@@ -55,23 +58,23 @@ case $COMMAND in
 
         # Показываем текущую версию
         info "Текущая версия БД:"
-        docker compose exec bot python -m alembic current || warning "Не удалось получить текущую версию"
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic current || warning "Не удалось получить текущую версию"
         echo ""
 
         # Применяем миграции
         info "Применяем все новые миграции..."
-        docker compose exec bot python -m alembic upgrade head
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic upgrade head
 
         echo ""
         success "Миграции успешно применены!"
 
         # Показываем новую версию
         info "Новая версия БД:"
-        docker compose exec bot python -m alembic current
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic current
         echo ""
 
         warning "Перезапускаем бота для применения изменений..."
-        docker compose restart bot
+        docker compose -f "$COMPOSE_FILE" restart bot
         sleep 2
         success "Бот перезапущен!"
         ;;
@@ -84,7 +87,7 @@ case $COMMAND in
 
         # Показываем текущую версию
         info "Текущая версия БД:"
-        docker compose exec bot python -m alembic current
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic current
         echo ""
 
         # Подтверждение
@@ -96,18 +99,18 @@ case $COMMAND in
 
         # Откатываем одну миграцию
         info "Откатываем последнюю миграцию..."
-        docker compose exec bot python -m alembic downgrade -1
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic downgrade -1
 
         echo ""
         success "Миграция откачена!"
 
         # Показываем новую версию
         info "Текущая версия БД:"
-        docker compose exec bot python -m alembic current
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic current
         echo ""
 
         warning "Перезапускаем бота..."
-        docker compose restart bot
+        docker compose -f "$COMPOSE_FILE" restart bot
         sleep 2
         success "Бот перезапущен!"
         ;;
@@ -115,13 +118,13 @@ case $COMMAND in
     current)
         check_docker
         info "Текущая версия базы данных:"
-        docker compose exec bot python -m alembic current
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic current
         ;;
 
     history)
         check_docker
         info "История миграций:"
-        docker compose exec bot python -m alembic history --verbose
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic history --verbose
         ;;
 
     status)
@@ -130,11 +133,11 @@ case $COMMAND in
         echo ""
 
         info "Текущая версия:"
-        docker compose exec bot python -m alembic current
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic current
 
         echo ""
         info "Последние миграции:"
-        docker compose exec bot python -m alembic history -n 5
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic history -n 5
         ;;
 
     create)
@@ -147,7 +150,7 @@ case $COMMAND in
         check_docker
 
         info "Создаем новую миграцию: $2"
-        docker compose exec bot python -m alembic revision --autogenerate -m "$2"
+        docker compose -f "$COMPOSE_FILE" exec bot python -m alembic revision --autogenerate -m "$2"
 
         success "Миграция создана!"
         warning "Проверьте созданный файл в migrations/versions/ перед применением!"

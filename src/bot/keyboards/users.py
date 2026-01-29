@@ -133,6 +133,14 @@ def get_user_profile_keyboard(user: User) -> InlineKeyboardMarkup:
                 )
             )
 
+    # Управление бонусами
+    builder.row(
+        InlineKeyboardButton(
+            text="💰 Редактировать бонусы",
+            callback_data=f"users:edit_bonus:{user.id}",
+        )
+    )
+
     # Заказы пользователя
     builder.row(
         InlineKeyboardButton(
@@ -173,6 +181,55 @@ def get_user_ban_confirm_keyboard(user_id: int) -> InlineKeyboardMarkup:
             text="❌ Отмена",
             callback_data=f"users:view:{user_id}",
         ),
+    )
+
+    return builder.as_markup()
+
+
+def get_bonus_operations_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура операций с бонусами.
+
+    Args:
+        user_id: ID пользователя
+
+    Returns:
+        Inline клавиатура
+    """
+    builder = InlineKeyboardBuilder()
+
+    builder.row(
+        InlineKeyboardButton(
+            text="➕ Начислить бонусы",
+            callback_data=f"bonus:add:{user_id}",
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="➖ Списать бонусы",
+            callback_data=f"bonus:subtract:{user_id}",
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="💰 Установить баланс",
+            callback_data=f"bonus:set:{user_id}",
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🛍 Списать со скидкой",
+            callback_data=f"bonus:discount:{user_id}",
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="◀️ К профилю",
+            callback_data=f"users:view:{user_id}",
+        )
     )
 
     return builder.as_markup()
