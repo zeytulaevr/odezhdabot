@@ -310,7 +310,7 @@ class ProductService:
                     # Отправляем кнопку отдельным сообщением
                     button_message = await bot.send_message(
                         chat_id=channel_id,
-                        text="👆 Для заказа нажмите кнопку:",
+                        text="👇",
                         message_thread_id=thread_id,
                         reply_markup=keyboard,
                     )
