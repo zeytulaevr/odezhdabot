@@ -180,20 +180,32 @@ async def show_catalog(
     await NavigationStack.clear(state)
 
     if isinstance(event, CallbackQuery):
-        await edit_message_with_navigation(
-            callback=event,
-            state=state,
-            text=text,
-            markup=keyboard,
-            save_to_history=False,  # Не сохраняем главную страницу каталога
-        )
+        if event.message.photo or event.message.document:
+            try:
+                await event.message.delete()
+                await event.message.answer(
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                logger.error(f"Error deleting message with photo: {e}")
+                await event.message.answer(text=text, reply_markup=keyboard, parse_mode="HTML")
+        else:
+            await edit_message_with_navigation(
+                callback=event,
+                state=state,
+                text=text,
+                markup=keyboard,
+                save_to_history=False,
+            )
+        await event.answer()
     else:
         await event.answer(
             text=text,
             reply_markup=keyboard,
             parse_mode="HTML",
         )
-
     logger.info(
         "Catalog opened",
         user_id=event.from_user.id,
