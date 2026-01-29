@@ -7,7 +7,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.bot.filters.role import IsSuperAdmin
+from src.bot.filters.role import IsAdmin, IsSuperAdmin
 from src.bot.keyboards.main_menu import get_superadmin_menu, get_superadmin_panel_keyboard
 from src.bot.keyboards.products import get_products_menu_keyboard, get_categories_manage_keyboard
 from src.core.constants import CallbackPrefix
