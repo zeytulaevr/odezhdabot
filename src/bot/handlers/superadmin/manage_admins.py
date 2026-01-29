@@ -432,14 +432,19 @@ async def change_admin_role(callback: CallbackQuery, session: AsyncSession) -> N
 @router.callback_query(
     IsSuperAdmin(),
     F.data.startswith("admins:set_role:"),
-    ~AddAdminStates.WAITING_ROLE,
 )
 async def change_existing_admin_role(
     callback: CallbackQuery,
     session: AsyncSession,
     user: User,
+    state: FSMContext,
 ) -> None:
     """Изменить роль существующего администратора (без FSM)."""
+    # Проверяем, что мы НЕ в состоянии добавления нового админа
+    current_state = await state.get_state()
+    if current_state == AddAdminStates.WAITING_ROLE:
+        # Если в FSM состоянии, пропускаем - обработает другой handler
+        return
     await callback.answer()
 
     parts = callback.data.split(":")
