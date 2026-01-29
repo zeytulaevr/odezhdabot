@@ -155,7 +155,7 @@ async def separator_handler(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("superadmin:"), IsSuperAdmin())
+@router.callback_query(F.data.startswith("superadmin:"), IsAdmin())
 async def process_superadmin_callback(
     callback: CallbackQuery,
     user: User,
@@ -170,6 +170,8 @@ async def process_superadmin_callback(
         session: Сессия БД
         state: FSM контекст
     """
+    from aiogram.exceptions import TelegramBadRequest
+
     parts = callback.data.split(":")
     action = parts[1] if len(parts) > 1 else None
     subaction = parts[2] if len(parts) > 2 else None
@@ -185,11 +187,30 @@ async def process_superadmin_callback(
             f"Выберите действие:"
         )
         if callback.message:
-            await callback.message.edit_text(
-                text=text,
-                reply_markup=get_superadmin_panel_keyboard(),
-                parse_mode="HTML",
-            )
+            # Проверяем, есть ли фото в сообщении
+            if callback.message.photo:
+                # Если есть фото, удаляем сообщение и отправляем новое
+                try:
+                    await callback.message.delete()
+                    await callback.message.answer(
+                        text=text,
+                        reply_markup=get_superadmin_panel_keyboard(),
+                        parse_mode="HTML",
+                    )
+                except TelegramBadRequest:
+                    # Если не удалось удалить, просто отправляем новое
+                    await callback.message.answer(
+                        text=text,
+                        reply_markup=get_superadmin_panel_keyboard(),
+                        parse_mode="HTML",
+                    )
+            else:
+                # Обычное редактирование текста
+                await callback.message.edit_text(
+                    text=text,
+                    reply_markup=get_superadmin_panel_keyboard(),
+                    parse_mode="HTML",
+                )
         return
 
     # Товары

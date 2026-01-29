@@ -174,6 +174,8 @@ async def process_admin_callback(
 
     # Возврат в главное меню админки
     if action == "menu":
+        from aiogram.exceptions import TelegramBadRequest
+
         await callback.answer()
         text = (
             f"👨‍💼 <b>Админ-панель</b>\n\n"
@@ -182,11 +184,30 @@ async def process_admin_callback(
             f"Выберите действие:"
         )
         if callback.message:
-            await callback.message.edit_text(
-                text=text,
-                reply_markup=get_admin_panel_keyboard(),
-                parse_mode="HTML",
-            )
+            # Проверяем, есть ли фото в сообщении
+            if callback.message.photo:
+                # Если есть фото, удаляем сообщение и отправляем новое
+                try:
+                    await callback.message.delete()
+                    await callback.message.answer(
+                        text=text,
+                        reply_markup=get_admin_panel_keyboard(),
+                        parse_mode="HTML",
+                    )
+                except TelegramBadRequest:
+                    # Если не удалось удалить, просто отправляем новое
+                    await callback.message.answer(
+                        text=text,
+                        reply_markup=get_admin_panel_keyboard(),
+                        parse_mode="HTML",
+                    )
+            else:
+                # Обычное редактирование текста
+                await callback.message.edit_text(
+                    text=text,
+                    reply_markup=get_admin_panel_keyboard(),
+                    parse_mode="HTML",
+                )
         return
 
     # Товары - показываем меню управления товарами

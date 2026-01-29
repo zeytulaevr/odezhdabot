@@ -273,7 +273,7 @@ async def delete_product(
     product_id = int(callback.data.split(":")[1])
 
     product_service = ProductService(session)
-    success = await product_service.delete_product(product_id, soft=True)
+    success = await product_service.delete_product(product_id, soft=False)
 
     if success:
         await callback.answer("✅ Товар удалён", show_alert=True)
