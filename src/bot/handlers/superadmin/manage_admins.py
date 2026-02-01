@@ -216,13 +216,19 @@ async def start_add_admin(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(AddAdminStates.WAITING_USER_INFO)
 
 
-@router.message(IsSuperAdmin(), AddAdminStates.WAITING_USER_INFO)
+@router.message(IsSuperAdmin(), AddAdminStates.WAITING_USER_INFO, ~F.text.startswith("/"))
 async def process_user_info(
     message: Message,
     state: FSMContext,
     session: AsyncSession,
 ) -> None:
     """Обработка информации о пользователе для добавления в админы."""
+    # Игнорируем кнопки reply-клавиатуры - сбрасываем состояние, чтобы другие хендлеры обработали
+    reply_buttons = ["👑 Супер-админ панель", "👤 Админ-панель", "📋 Заказы", "📦 Каталог", "🏠 Главное меню"]
+    if message.text and message.text in reply_buttons:
+        await state.clear()
+        return
+
     user_repo = UserRepository(session)
     target_user = None
 
