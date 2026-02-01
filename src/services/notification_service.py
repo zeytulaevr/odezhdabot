@@ -83,13 +83,13 @@ class NotificationService:
 
         # Формируем заголовок уведомления
         header = f"🆕 <b>Новый заказ #{order.id}</b>\n\n"
-        header += "━━━━━━━━━━━━━━━━━━━━\n"
+        header += "━━━━━━━━━━\n"
         header += f"👤 <b>Клиент:</b> {order.user.full_name}\n"
         if order.user.username:
             header += f"📱 <b>Telegram:</b> @{order.user.username}\n"
         header += f"📞 <b>Контакт:</b> {order.customer_contact}\n"
         header += f"🕐 <b>Дата:</b> {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-        header += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        header += "━━━━━━━━━━\n\n"
 
         # Формируем информацию о товарах
         items_text = f"🛍️ <b>Товары ({order.total_items} шт.):</b>\n\n"
@@ -101,9 +101,9 @@ class NotificationService:
                 items_text += f" | 🎨 <i>{item.color}</i>"
             items_text += f"\n   🔢 {item.quantity} шт. × {item.price_at_order:,.2f} ₽ = <b>{item.total_price:,.2f} ₽</b>\n\n"
 
-        footer = "━━━━━━━━━━━━━━━━━━━━\n"
+        footer = "━━━━━━━━━━\n"
         footer += f"💰 <b>ИТОГО: {order.total_price:,.2f} ₽</b>\n"
-        footer += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        footer += "━━━━━━━━━━\n\n"
         footer += "⚙️ Для обработки используйте /admin"
 
         # Объединяем всё
@@ -204,7 +204,7 @@ class NotificationService:
         # Формируем заголовок
         header = f"✅ <b>Ваш заказ принят!</b>\n\n"
         header += f"📋 Номер заказа: <code>#{order.id}</code>\n"
-        header += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        header += "━━━━━━━━━━\n\n"
 
         # Формируем информацию о товарах
         items_text = f"🛍️ <b>Состав заказа ({order.total_items} шт.):</b>\n\n"
@@ -216,9 +216,9 @@ class NotificationService:
                 items_text += f" | 🎨 <i>{item.color}</i>"
             items_text += f"\n   🔢 {item.quantity} шт. × {item.price_at_order:,.2f} ₽ = <b>{item.total_price:,.2f} ₽</b>\n\n"
 
-        footer = "━━━━━━━━━━━━━━━━━━━━\n"
+        footer = "━━━━━━━━━━\n"
         footer += f"💰 <b>ИТОГО: {order.total_price:,.2f} ₽</b>\n"
-        footer += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        footer += "━━━━━━━━━━\n\n"
         footer += "📞 Мы свяжемся с вами в ближайшее время.\n"
         if alternative_contact:
             footer += f"💬 Или напишите нам: {alternative_contact}\n"

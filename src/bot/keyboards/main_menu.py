@@ -18,34 +18,25 @@ def get_user_menu(cart_items_count: int = 0) -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
 
-    # Первый ряд
-    builder.row(
-        InlineKeyboardButton(text="📦 Каталог", callback_data="catalog"),
-        InlineKeyboardButton(text="🛍 Мои заказы", callback_data="my_orders"),
-    )
-
-    # Второй ряд - Корзина
+    # Каталог и Корзина в одном ряду
     cart_text = "🛒 Корзина"
     if cart_items_count > 0:
         cart_text += f" ({cart_items_count})"
 
     builder.row(
+        InlineKeyboardButton(text="📦 Каталог", callback_data="catalog"),
         InlineKeyboardButton(text=cart_text, callback_data="cart_view"),
     )
 
-    # Третий ряд - Бонусы
+    # Заказы и Бонусы
     builder.row(
-        InlineKeyboardButton(text="🎁 Мои бонусы", callback_data="user:bonuses"),
+        InlineKeyboardButton(text="🛍 Заказы", callback_data="my_orders"),
+        InlineKeyboardButton(text="🎁 Бонусы", callback_data="user:bonuses"),
     )
 
-    # Четвёртый ряд - Связаться с админом
+    # Поддержка
     builder.row(
-        InlineKeyboardButton(text="💬 Связаться с администратором", callback_data="support:start"),
-    )
-
-    # Пятый ряд - Помощь
-    builder.row(
-        InlineKeyboardButton(text="ℹ️ Помощь", callback_data="user:help"),
+        InlineKeyboardButton(text="💬 Поддержка", callback_data="support:start"),
     )
 
     return builder.as_markup()
@@ -114,36 +105,16 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
     """Inline клавиатура для админ-панели."""
     builder = InlineKeyboardBuilder()
 
-    # Первый ряд - Новые и В обработке
+    # Заказы
     builder.row(
-        InlineKeyboardButton(text="📋 Новые", callback_data="admin:orders:new"),
-        InlineKeyboardButton(text="🔄 В обработке", callback_data="admin:orders:processing"),
-    )
-
-    # Второй ряд - Завершённые
-    builder.row(
-        InlineKeyboardButton(text="✅ Завершённые", callback_data="admin:orders:completed"),
-    )
-
-    builder.row(
-        InlineKeyboardButton(text="━━━━━━━━━━━━━━━", callback_data="separator"),
-    )
-
-    # Третий ряд - Товары
-    builder.row(
+        InlineKeyboardButton(text="📋 Заказы", callback_data="admin:orders"),
         InlineKeyboardButton(text="📦 Товары", callback_data="admin:products"),
-        InlineKeyboardButton(text="➕ Добавить товар", callback_data="prod_add_dialog"),
     )
 
-    # Четвертый ряд - Статистика и Пользователи
+    # Статистика и Пользователи
     builder.row(
         InlineKeyboardButton(text="📊 Статистика", callback_data="admin:stats"),
         InlineKeyboardButton(text="👤 Пользователи", callback_data="admin:users"),
-    )
-
-    # Пятый ряд - Помощь
-    builder.row(
-        InlineKeyboardButton(text="ℹ️ Помощь", callback_data="admin:help"),
     )
 
     return builder.as_markup()
@@ -156,43 +127,22 @@ def get_superadmin_panel_keyboard() -> InlineKeyboardMarkup:
     """Inline клавиатура супер-админ панели."""
     builder = InlineKeyboardBuilder()
 
-    # Первый ряд - Заказы и Товары
+    # Заказы и Товары
     builder.row(
         InlineKeyboardButton(text="📋 Заказы", callback_data="superadmin:orders"),
         InlineKeyboardButton(text="📦 Товары", callback_data="superadmin:products"),
     )
 
-    # Второй ряд - Добавить товар и Категории
-    builder.row(
-        InlineKeyboardButton(text="➕ Добавить товар", callback_data="prod_add_dialog"),
-        InlineKeyboardButton(text="🏷 Категории", callback_data="superadmin:categories"),
-    )
-
-    builder.row(
-        InlineKeyboardButton(text="━━━━━━━━━━━━━━━", callback_data="separator"),
-    )
-
-    # Третий ряд - Админы и Модерация
-    builder.row(
-        InlineKeyboardButton(text="👥 Админы", callback_data="superadmin:admins"),
-        InlineKeyboardButton(text="🔧 Модерация", callback_data="superadmin:reviews"),
-    )
-
-    # Четвёртый ряд - Рассылка и Статистика
+    # Рассылка и Статистика
     builder.row(
         InlineKeyboardButton(text="📢 Рассылка", callback_data="superadmin:broadcast"),
         InlineKeyboardButton(text="📊 Статистика", callback_data="superadmin:stats"),
     )
 
-    # Пятый ряд - Пользователи и Настройки
+    # Пользователи и Настройки
     builder.row(
         InlineKeyboardButton(text="👤 Пользователи", callback_data="superadmin:users"),
         InlineKeyboardButton(text="⚙️ Настройки", callback_data="superadmin:settings"),
-    )
-
-    # Шестой ряд - Помощь
-    builder.row(
-        InlineKeyboardButton(text="ℹ️ Помощь", callback_data="superadmin:help"),
     )
 
     return builder.as_markup()

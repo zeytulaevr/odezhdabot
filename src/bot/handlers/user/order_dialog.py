@@ -304,7 +304,7 @@ async def process_quantity_selection(
 
     text = f"✅ <b>Готово к добавлению!</b>\n\n"
     text += f"🛍️ <b>{product_name}</b>\n"
-    text += "━━━━━━━━━━━━━━━━━━━━\n"
+    text += "━━━━━━━━━━\n"
     text += f"💰 Цена: {product_price}\n"
     text += f"📏 Размер: <code>{size.upper()}</code>\n"
 
@@ -312,7 +312,7 @@ async def process_quantity_selection(
         text += f"🎨 Цвет: <i>{color}</i>\n"
 
     text += f"🔢 Количество: <b>{quantity} шт.</b>\n"
-    text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += "━━━━━━━━━━\n\n"
     text += "💡 <i>Выберите действие:</i>"
 
     keyboard = get_add_to_cart_keyboard(product_id, size, quantity, color)

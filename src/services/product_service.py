@@ -344,34 +344,39 @@ class ProductService:
             )
             raise
 
-    async def _format_product_post(self, product: Product, settings) -> str:
+    async def _format_product_post(self, product: Product, settings, sold_out: bool = False) -> str:
         """Форматировать пост товара для канала.
 
         Args:
             product: Товар
             settings: Настройки бота (BotSettings)
+            sold_out: Пометить как распроданный
 
         Returns:
             Отформатированный текст
         """
         # Заголовок с названием
-        text = f"✨ <b>{product.name}</b> ✨\n\n"
+        if sold_out:
+            text = f"🚫 <b>{product.name}</b>\n"
+            text += "<b>РАСПРОДАНО / SOLD OUT</b>\n\n"
+        else:
+            text = f"✨ <b>{product.name}</b>\n\n"
 
-        # Красивый разделитель
-        text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        # Разделитель (укороченный)
+        text += "━━━━━━━━━━\n"
 
         # Описание (если есть)
         if product.description:
-            text += f"{product.description}\n\n"
+            text += f"{product.description}\n"
 
-        # Цена - выделяем ярко
-        text += f"💰 <b>Цена: {product.formatted_price}</b>\n\n"
+        # Цена - только для активных товаров
+        if not sold_out:
+            text += f"💰 <b>{product.formatted_price}</b>\n"
 
         # Размеры
         if product.sizes_list:
             sizes_formatted = ", ".join([f"<b>{s.upper()}</b>" for s in product.sizes_list])
-            text += f"📏 <b>Размеры:</b> {sizes_formatted}"
-            # Добавляем тип кроя если есть
+            text += f"📏 {sizes_formatted}"
             if product.fit:
                 text += f" <i>({product.fit})</i>"
             text += "\n"
@@ -379,19 +384,16 @@ class ProductService:
         # Цвета
         if product.colors_list:
             colors_formatted = ", ".join([f"<i>{c}</i>" for c in product.colors_list])
-            text += f"🎨 <b>Цвета:</b> {colors_formatted}\n"
+            text += f"🎨 {colors_formatted}\n"
 
-        text += "\n━━━━━━━━━━━━━━━━━━━━\n\n"
+        text += "━━━━━━━━━━\n"
 
-        # Призыв к действию с контактом из настроек
-        contact = settings.alternative_contact_username if settings and settings.alternative_contact_username else "@username"
-        # Убираем @ если он уже есть
-        if contact and not contact.startswith("@"):
-            contact = f"@{contact}"
-
-        text += f"🛒 <b>Оформить заказ:</b>\n"
-        text += f"• Напишите {contact}\n"
-        text += f"• Или нажмите кнопку ниже 👇"
+        # Призыв к действию только для активных товаров
+        if not sold_out:
+            contact = settings.alternative_contact_username if settings and settings.alternative_contact_username else "@username"
+            if contact and not contact.startswith("@"):
+                contact = f"@{contact}"
+            text += f"🛒 {contact} или кнопка ниже 👇"
 
         return text
 

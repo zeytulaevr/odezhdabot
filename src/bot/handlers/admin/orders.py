@@ -79,7 +79,7 @@ def format_admin_order_detail(order) -> str:
 
     text = (
         f"{status_emoji} <b>Заказ #{order.id}</b>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"━━━━━━━━━━\n"
         f"👤 <b>Клиент:</b> {order.user.full_name}\n"
     )
 
@@ -90,7 +90,7 @@ def format_admin_order_detail(order) -> str:
         f"📞 <b>Контакт:</b> {order.customer_contact}\n"
         f"🆔 <b>Telegram ID:</b> <code>{order.user.telegram_id}</code>\n"
         f"🕐 <b>Дата:</b> {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━\n\n"
     )
 
     # Список товаров
@@ -111,9 +111,9 @@ def format_admin_order_detail(order) -> str:
         text += "📭 <b>Нет товаров в заказе</b>\n\n"
 
     text += (
-        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"━━━━━━━━━━\n"
         f"💰 <b>ИТОГО: {float(order.total_price):.2f} ₽</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━\n\n"
         f"<b>Статус:</b> {status_name}\n"
         f"<b>Обновлён:</b> {order.updated_at.strftime('%d.%m.%Y %H:%M')}"
     )

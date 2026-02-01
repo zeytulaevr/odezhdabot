@@ -244,10 +244,7 @@ async def show_category_products(
 
     if not products:
         text = f"📭 <b>{category.name}</b>\n\n"
-        text += "━━━━━━━━━━━━━━━━━━━━\n"
-        text += "В этой категории пока нет товаров.\n"
-        text += "━━━━━━━━━━━━━━━━━━━━\n\n"
-        text += "💡 <i>Загляните в другие категории!</i>"
+        text += "В этой категории пока нет товаров."
 
         keyboard_builder = __import__('aiogram.utils.keyboard', fromlist=['InlineKeyboardBuilder']).InlineKeyboardBuilder()
         keyboard_builder.row(
@@ -306,29 +303,24 @@ async def show_product_detail(
 
     product = products[product_index]
 
-    # Формируем красивое описание товара
-    text = f"✨ <b>{product.name}</b> ✨\n\n"
-
-    text += "━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"💰 <b>Цена:</b> {product.formatted_price}\n"
+    # Формируем компактное описание товара
+    text = f"<b>{product.name}</b>\n"
+    text += "━━━━━━━━━━\n"
+    text += f"💰 <b>{product.formatted_price}</b>\n"
 
     if product.sizes_list:
         sizes_display = " • ".join([f"<code>{s}</code>" for s in product.sizes_list])
-        text += f"📏 <b>Размеры:</b> {sizes_display}\n"
+        text += f"📏 {sizes_display}"
+        if product.fit:
+            text += f" ({product.fit})"
+        text += "\n"
 
     if product.colors_list:
-        colors_display = " • ".join([f"<i>{c}</i>" for c in product.colors_list])
-        text += f"🎨 <b>Цвета:</b> {colors_display}\n"
-
-    if product.fit:
-        text += f"👔 <b>Крой:</b> {product.fit}\n"
-
-    text += "━━━━━━━━━━━━━━━━━━━━\n"
+        colors_display = ", ".join(product.colors_list)
+        text += f"🎨 {colors_display}\n"
 
     if product.description:
-        text += f"\n📝 {product.description}\n"
-
-    text += f"\n📁 <i>Категория: {product.category.name if product.category else '—'}</i>"
+        text += f"\n{product.description}"
 
     # Клавиатура с навигацией
     keyboard = await build_product_detail_keyboard(
