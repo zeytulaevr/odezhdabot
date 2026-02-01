@@ -106,18 +106,6 @@ def get_quantity_selection_keyboard(product_id: int, size: str, color: str | Non
 
     builder.row(*row)
 
-    # Кнопка ручного ввода количества
-    manual_callback_data = f"order_quantity_manual:{product_id}:{size}"
-    if color:
-        manual_callback_data += f":{color}"
-
-    builder.row(
-        InlineKeyboardButton(
-            text="✏️ Ввести количество вручную",
-            callback_data=manual_callback_data,
-        )
-    )
-
     builder.row(
         InlineKeyboardButton(text="◀️ Назад", callback_data="back")
     )

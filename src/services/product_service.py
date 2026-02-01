@@ -206,6 +206,7 @@ class ProductService:
             ValueError: Если товар не найден или нет медиа
         """
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+        from src.database.models.bot_settings import BotSettings
 
         product = await self.get_product(product_id)
         if not product:
@@ -216,8 +217,11 @@ class ProductService:
         if not has_media:
             raise ValueError(f"У товара {product_id} нет медиа")
 
+        # Получаем настройки бота для контакта
+        settings = await BotSettings.get_settings(self.session)
+
         # Формируем текст поста
-        text = self._format_product_post(product)
+        text = await self._format_product_post(product, settings)
 
         # Определяем thread_id из категории
         thread_id = product.category.thread_id if product.category else None
@@ -306,7 +310,7 @@ class ProductService:
                     # Отправляем кнопку отдельным сообщением
                     button_message = await bot.send_message(
                         chat_id=channel_id,
-                        text="👆 Для заказа нажмите кнопку:",
+                        text="👇",
                         message_thread_id=thread_id,
                         reply_markup=keyboard,
                     )
@@ -340,39 +344,54 @@ class ProductService:
             )
             raise
 
-    def _format_product_post(self, product: Product) -> str:
+    async def _format_product_post(self, product: Product, settings) -> str:
         """Форматировать пост товара для канала.
 
         Args:
             product: Товар
+            settings: Настройки бота (BotSettings)
 
         Returns:
             Отформатированный текст
         """
-        # Название и цена
-        text = f"<b>{product.name}</b>\n"
-        text += f"💰 Цена: <b>{product.formatted_price}</b>\n\n"
+        # Заголовок с названием
+        text = f"✨ <b>{product.name}</b> ✨\n\n"
 
-        # Описание
+        # Красивый разделитель
+        text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        # Описание (если есть)
         if product.description:
             text += f"{product.description}\n\n"
 
+        # Цена - выделяем ярко
+        text += f"💰 <b>Цена: {product.formatted_price}</b>\n\n"
+
         # Размеры
         if product.sizes_list:
-            text += f"📏 Размеры: {', '.join(product.sizes_list)}"
-            # Добавляем тип кроя рядом с размерами
+            sizes_formatted = ", ".join([f"<b>{s.upper()}</b>" for s in product.sizes_list])
+            text += f"📏 <b>Размеры:</b> {sizes_formatted}"
+            # Добавляем тип кроя если есть
             if product.fit:
-                text += f" ({product.fit})"
+                text += f" <i>({product.fit})</i>"
             text += "\n"
 
         # Цвета
         if product.colors_list:
-            text += f"🎨 Цвета: {', '.join(product.colors_list)}\n"
+            colors_formatted = ", ".join([f"<i>{c}</i>" for c in product.colors_list])
+            text += f"🎨 <b>Цвета:</b> {colors_formatted}\n"
 
-        text += "\n"
+        text += "\n━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        # Призыв к действию
-        text += "🛒 Для заказа напишите @username или нажмите кнопку ниже"
+        # Призыв к действию с контактом из настроек
+        contact = settings.alternative_contact_username if settings and settings.alternative_contact_username else "@username"
+        # Убираем @ если он уже есть
+        if contact and not contact.startswith("@"):
+            contact = f"@{contact}"
+
+        text += f"🛒 <b>Оформить заказ:</b>\n"
+        text += f"• Напишите {contact}\n"
+        text += f"• Или нажмите кнопку ниже 👇"
 
         return text
 

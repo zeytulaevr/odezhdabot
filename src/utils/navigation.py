@@ -248,10 +248,21 @@ async def go_back(
         # История пуста, возвращаем на главное меню
         await callback.answer("История пуста")
         try:
-            await callback.message.edit_text(
-                text=default_text,
-                parse_mode="HTML",
-            )
+            # Проверяем, есть ли фото в сообщении
+            if callback.message.photo:
+                # Если есть фото, удаляем сообщение и отправляем новое
+                await callback.message.delete()
+                await callback.bot.send_message(
+                    chat_id=callback.message.chat.id,
+                    text=default_text,
+                    parse_mode="HTML",
+                )
+            else:
+                # Обычное редактирование текста
+                await callback.message.edit_text(
+                    text=default_text,
+                    parse_mode="HTML",
+                )
         except TelegramBadRequest as e:
             if "message is not modified" not in str(e).lower():
                 raise

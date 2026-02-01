@@ -2,7 +2,7 @@
 
 from aiogram import Router
 
-from src.bot.handlers.user import bonuses, cart, catalog, my_orders, order_chat, order_dialog, start
+from src.bot.handlers.user import bonuses, cart, catalog, my_orders, order_chat, order_dialog, start, support_chat
 
 # Главный роутер для пользователей
 router = Router(name="user")
@@ -10,6 +10,7 @@ router = Router(name="user")
 # Подключаем суб-роутеры в порядке приоритета
 router.include_router(start.router)  # /start (включая deep link)
 router.include_router(order_chat.router)  # Чат с админом по заказу (ПЕРВЫЙ для reply)
+router.include_router(support_chat.router)  # Чат с поддержкой (FSM + reply для админов)
 router.include_router(bonuses.router)  # Бонусная система (FSM handler first)
 router.include_router(cart.router)  # Корзина покупок
 router.include_router(order_dialog.router)  # FSM диалог заказа
